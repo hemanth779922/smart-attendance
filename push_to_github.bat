@@ -30,7 +30,9 @@ if "%choice%"=="1" (
     git push origin main
 ) else if "%choice%"=="3" (
     set /p token="Enter your GitHub Personal Access Token (PAT): "
+    setlocal enabledelayedexpansion
     git push https://!token!@github.com/hemanth779922/smart-attendance.git main
+    endlocal
 ) else (
     echo Invalid selection.
 )

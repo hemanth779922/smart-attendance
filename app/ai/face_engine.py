@@ -1,4 +1,4 @@
-﻿import os
+import os
 import math
 import logging
 from typing import List, Dict, Any, Tuple, Optional
@@ -11,10 +11,25 @@ logger = logging.getLogger(__name__)
 
 YUNET_PATH = os.path.join("models", "face_detection_yunet.onnx")
 SFACE_PATH = os.path.join("models", "face_recognition_sface.onnx")
+YUNET_URL = "https://github.com/opencv/opencv_zoo/raw/main/models/face_detection_yunet/face_detection_yunet_2023mar.onnx"
+SFACE_URL = "https://github.com/opencv/opencv_zoo/raw/main/models/face_recognition_sface/face_recognition_sface_2021dec.onnx"
 
 _yunet_detector = None
 _sface_recognizer = None
 _use_yunet = False
+
+
+def _ensure_model(path: str, url: str) -> None:
+    """Download ONNX model file if missing on first launch."""
+    if not os.path.exists(path):
+        try:
+            os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+            logger.info(f"Downloading model {os.path.basename(path)}...")
+            import urllib.request
+            urllib.request.urlretrieve(url, path)
+            logger.info(f"Downloaded {os.path.basename(path)} successfully.")
+        except Exception as e:
+            logger.warning(f"Could not auto-download model from {url}: {e}")
 
 
 def load_cascades():
@@ -24,6 +39,9 @@ def load_cascades():
     """
     global _yunet_detector, _sface_recognizer, _use_yunet
     
+    _ensure_model(YUNET_PATH, YUNET_URL)
+    _ensure_model(SFACE_PATH, SFACE_URL)
+
     if os.path.exists(YUNET_PATH) and hasattr(cv2, "FaceDetectorYN_create"):
         try:
             _yunet_detector = cv2.FaceDetectorYN_create(

@@ -1,4 +1,4 @@
-﻿# Smart Attendance System 2.0
+# Smart Attendance System 2.0
 
 > Enterprise AI-Powered Face Recognition Attendance Platform with Low-Light Enhancement, Multi-Signal Anti-Spoofing, and PostgreSQL pgvector Search.
 
@@ -121,6 +121,16 @@ npm install
 npm run dev
 ```
 Open [http://localhost:5173](http://localhost:5173) in your browser.
+
+### 5. Run via Streamlit (Alternative All-in-One Deployment)
+You can also run the entire application via the built-in Streamlit deployment:
+```bash
+# Run Streamlit deployment
+streamlit run streamlit_app.py
+# Or on Windows, double-click:
+run_streamlit.bat
+```
+Open [http://localhost:8501](http://localhost:8501) in your browser.
 
 ---
 

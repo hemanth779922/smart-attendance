@@ -33,6 +33,10 @@ dist/
 models/*.onnx
 !models/.gitkeep
 
+# Temporary office lock files
+~$*
+*.tmp
+
 # OS / Editor files
 .DS_Store
 Thumbs.db

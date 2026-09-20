@@ -32,11 +32,11 @@ class Settings(BaseSettings):
     )
     
     FACE_MATCH_THRESHOLD: float = Field(
-        default=0.65,
+        default=0.75,
         description='Cosine similarity threshold for face recognition'
     )
     LOW_LIGHT_THRESHOLD: float = Field(
-        default=45.0,
+        default=50.0,
         description='Mean luminance threshold below which low-light enhancement is triggered'
     )
     LOW_LIGHT_HIST_CLIP_PERCENTILE: float = Field(
@@ -44,7 +44,7 @@ class Settings(BaseSettings):
         description='Threshold percentage of dark pixels to trigger low-light enhancement'
     )
     BLUR_THRESHOLD: float = Field(
-        default=40.0,
+        default=45.0,
         description='Laplacian variance threshold for blur detection'
     )
     MIN_FACE_SIZE: int = Field(

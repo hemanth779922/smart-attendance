@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Live Camera Auto-Scanner</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { background: #0f172a; color: #f8fafc; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; padding: 10px; overflow: hidden; }
+    
+    .scanner-card {
+      position: relative;
+      width: 100%;
+      max-width: 640px;
+      background: #1e293b;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5);
+      border: 1px solid #334155;
+    }
+
+    .video-wrapper {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 4/3;
+      background: #020617;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transform: scaleX(-1); /* mirror view for natural interaction */
+    }
+
+    canvas.overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 10;
+    }
+
+    /* Animated Scanning HUD */
+    .hud-brackets {
+      position: absolute;
+      top: 15%;
+      left: 20%;
+      width: 60%;
+      height: 70%;
+      border: 2px dashed rgba(56, 189, 248, 0.4);
+      border-radius: 16px;
+      pointer-events: none;
+      box-shadow: 0 0 20px rgba(56, 189, 248, 0.15) inset;
+      transition: all 0.3s ease;
+    }
+
+    .hud-brackets.verified {
+      border: 3px solid #22c55e;
+      box-shadow: 0 0 30px rgba(34, 197, 94, 0.35) inset, 0 0 20px rgba(34, 197, 94, 0.4);
+    }
+
+    .hud-brackets.already-marked {
+      border: 3px solid #38bdf8;
+      box-shadow: 0 0 30px rgba(56, 189, 248, 0.35) inset;
+    }
+
+    .hud-brackets.unknown {
+      border: 3px solid #f59e0b;
+    }
+
+    .scan-line {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 3px;
+      background: linear-gradient(90deg, transparent, #38bdf8, #818cf8, transparent);
+      box-shadow: 0 0 15px #38bdf8;
+      animation: scanAnim 2.5s ease-in-out infinite alternate;
+      pointer-events: none;
+    }
+
+    @keyframes scanAnim {
+      0% { top: 15%; opacity: 0.2; }
+      50% { opacity: 0.9; }
+      100% { top: 85%; opacity: 0.2; }
+    }
+
+    .top-badge {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(8px);
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      z-index: 20;
+    }
+
+    .pulse-dot {
+      width: 8px;
+      height: 8px;
+      background: #22c55e;
+      border-radius: 50%;
+      box-shadow: 0 0 8px #22c55e;
+      animation: pulse 1.5s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(0.8); }
+    }
+
+    .status-toast {
+      position: absolute;
+      bottom: 15px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(15, 23, 42, 0.92);
+      backdrop-filter: blur(10px);
+      padding: 8px 18px;
+      border-radius: 30px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #38bdf8;
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      z-index: 20;
+      text-align: center;
+      max-width: 90%;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+      transition: all 0.3s ease;
+    }
+
+    .status-toast.success {
+      background: rgba(22, 101, 52, 0.95);
+      color: #f0fdf4;
+      border-color: #22c55e;
+      box-shadow: 0 4px 20px rgba(34, 197, 94, 0.5);
+    }
+
+    .status-toast.info {
+      background: rgba(12, 74, 110, 0.95);
+      color: #f0f9ff;
+      border-color: #38bdf8;
+    }
+
+    .status-toast.warn {
+      background: rgba(120, 53, 15, 0.95);
+      color: #fef3c7;
+      border-color: #f59e0b;
+    }
+
+    .controls-bar {
+      padding: 10px 16px;
+      background: #1e293b;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-top: 1px solid #334155;
+    }
+
+    .ctrl-btn {
+      background: #334155;
+      color: #f8fafc;
+      border: 1px solid #475569;
+      padding: 6px 14px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.85rem;
+      font-weight: 500;
+      transition: all 0.2s;
+    }
+
+    .ctrl-btn:hover { background: #475569; }
+    .ctrl-btn.active { background: #0284c7; border-color: #38bdf8; color: white; }
+
+    .instructions {
+      font-size: 0.78rem;
+      color: #94a3b8;
+    }
+  </style>
+</head>
+<body>
+  <div class="scanner-card">
+    <div class="video-wrapper">
+      <video id="webcam" autoplay playsinline muted></video>
+      <div id="hud" class="hud-brackets">
+        <div class="scan-line"></div>
+      </div>
+      <div class="top-badge">
+        <div id="pulse" class="pulse-dot"></div>
+        <span id="badge-text">AUTO-SCANNING ACTIVE</span>
+      </div>
+      <div id="toast" class="status-toast">
+        🔍 Move in front of camera to mark attendance
+      </div>
+    </div>
+    <div class="controls-bar">
+      <div class="instructions" id="sub-info">
+        ⚡ <strong>Hands-Free Kiosk:</strong> Face auto-detects in real-time
+      </div>
+      <button id="toggle-btn" class="ctrl-btn active" onclick="toggleScanner()">
+        ⏸️ Pause Scanner
+      </button>
+    </div>
+  </div>
+
+  <canvas id="capture-canvas" style="display:none;"></canvas>
+
+  <script>
+    // Streamlit Component Protocol Implementation
+    let isRunning = true;
+    let captureInterval = 1200; // Capture snapshot every 1.2s
+    let lastCaptureTime = 0;
+    let isProcessing = false;
+    let scanTimer = null;
+    let audioCtx = null;
+
+    const video = document.getElementById("webcam");
+    const captureCanvas = document.getElementById("capture-canvas");
+    const hud = document.getElementById("hud");
+    const toast = document.getElementById("toast");
+    const toggleBtn = document.getElementById("toggle-btn");
+    const pulseDot = document.getElementById("pulse");
+    const badgeText = document.getElementById("badge-text");
+
+    // Audio chime synthesis for instant feedback
+    function playBeep(success) {
+      try {
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if (audioCtx.state === "suspended") audioCtx.resume();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        
+        if (success) {
+          // Cheerful two-tone chime (E5 -> B5)
+          osc.frequency.setValueAtTime(659.25, audioCtx.currentTime);
+          osc.frequency.setValueAtTime(987.77, audioCtx.currentTime + 0.1);
+          gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.35);
+          osc.start();
+          osc.stop(audioCtx.currentTime + 0.35);
+        } else {
+          // Lower tone for already marked / retry
+          osc.frequency.setValueAtTime(440, audioCtx.currentTime);
+          gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
+          osc.start();
+          osc.stop(audioCtx.currentTime + 0.2);
+        }
+      } catch (e) {
+        console.log("Audio not allowed yet:", e);
+      }
+    }
+
+    // Streamlit Communication
+    function postMessageToParent(type, data) {
+      window.parent.postMessage(Object.assign({
+        isStreamlitMessage: true,
+        type: type
+      }, data), "*");
+    }
+
+    function setComponentValue(value) {
+      postMessageToParent("streamlit:setComponentValue", { value: value });
+    }
+
+    function setFrameHeight(height) {
+      postMessageToParent("streamlit:setFrameHeight", { height: height });
+    }
+
+    // Tell Streamlit we are ready and set layout height
+    postMessageToParent("streamlit:componentReady", { apiVersion: 1 });
+    setFrameHeight(560);
+
+    // Start user's browser webcam
+    function initCamera() {
+      navigator.mediaDevices.getUserMedia({
+        video: {
+          width: { ideal: 640 },
+          height: { ideal: 480 },
+          facingMode: "user"
+        },
+        audio: false
+      }).then(stream => {
+        video.srcObject = stream;
+        video.onloadedmetadata = () => {
+          video.play();
+          startScanLoop();
+        };
+      }).catch(err => {
+        toast.className = "status-toast warn";
+        toast.innerText = "❌ Camera Error: " + (err.message || "Permission denied");
+        badgeText.innerText = "CAMERA BLOCKED";
+        pulseDot.style.background = "#ef4444";
+      });
+    }
+
+    function startScanLoop() {
+      if (scanTimer) clearInterval(scanTimer);
+      scanTimer = setInterval(() => {
+        if (!isRunning || isProcessing) return;
+        
+        const now = Date.now();
+        if (now - lastCaptureTime < captureInterval) return;
+        
+        // Grab frame onto canvas
+        if (video.videoWidth === 0 || video.videoHeight === 0) return;
+        
+        captureCanvas.width = video.videoWidth;
+        captureCanvas.height = video.videoHeight;
+        const ctx = captureCanvas.getContext("2d");
+        
+        // Draw normal (un-mirrored) frame for accurate facial landmarks
+        ctx.drawImage(video, 0, 0, captureCanvas.width, captureCanvas.height);
+        
+        const dataUrl = captureCanvas.toDataURL("image/jpeg", 0.72);
+        lastCaptureTime = now;
+        isProcessing = true;
+
+        // Dispatch frame to Streamlit Python
+        setComponentValue({
+          image_data: dataUrl,
+          timestamp: now
+        });
+      }, 300);
+    }
+
+    function toggleScanner() {
+      isRunning = !isRunning;
+      if (isRunning) {
+        toggleBtn.innerText = "⏸️ Pause Scanner";
+        toggleBtn.classList.add("active");
+        badgeText.innerText = "AUTO-SCANNING ACTIVE";
+        pulseDot.style.background = "#22c55e";
+        toast.innerText = "🔍 Move in front of camera to mark attendance";
+        toast.className = "status-toast";
+        hud.className = "hud-brackets";
+      } else {
+        toggleBtn.innerText = "▶️ Resume Scanner";
+        toggleBtn.classList.remove("active");
+        badgeText.innerText = "SCANNER PAUSED";
+        pulseDot.style.background = "#f59e0b";
+        toast.innerText = "⏸️ Scanner paused. Click Resume to continue.";
+        toast.className = "status-toast warn";
+        hud.className = "hud-brackets";
+      }
+    }
+
+    // Handle messages sent from Streamlit Python back into the component
+    window.addEventListener("message", (event) => {
+      if (event.data && event.data.type === "streamlit:render") {
+        isProcessing = false; // Reset processing flag for next capture
+        const args = event.data.args || {};
+        
+        if (args.last_result) {
+          const res = args.last_result;
+          
+          if (res.status === "marked") {
+            // Success! Attendance Marked
+            hud.className = "hud-brackets verified";
+            toast.className = "status-toast success";
+            toast.innerHTML = `✅ <strong>ATTENDANCE MARKED:</strong> ${res.student_name} (${res.sim_pct}%)`;
+            playBeep(true);
+            
+            // Revert HUD after 3 seconds
+            setTimeout(() => {
+              if (isRunning) {
+                hud.className = "hud-brackets";
+                toast.className = "status-toast";
+                toast.innerText = "🔍 Move in front of camera to mark attendance";
+              }
+            }, 3000);
+
+          } else if (res.status === "already_marked") {
+            // Already Marked Today
+            hud.className = "hud-brackets already-marked";
+            toast.className = "status-toast info";
+            toast.innerHTML = `ℹ️ <strong>PRESENT:</strong> ${res.student_name} (Already Marked Today)`;
+            playBeep(false);
+
+            setTimeout(() => {
+              if (isRunning) {
+                hud.className = "hud-brackets";
+                toast.className = "status-toast";
+                toast.innerText = "🔍 Move in front of camera to mark attendance";
+              }
+            }, 2500);
+
+          } else if (res.status === "not_enrolled") {
+            hud.className = "hud-brackets unknown";
+            toast.className = "status-toast warn";
+            toast.innerHTML = `⚠️ <strong>NOT ENROLLED:</strong> ${res.student_name} in this class`;
+
+          } else if (res.status === "spoof") {
+            hud.className = "hud-brackets unknown";
+            toast.className = "status-toast warn";
+            toast.innerHTML = `🚫 <strong>SPOOF ALERT:</strong> Live face verification failed`;
+
+          } else if (res.status === "unknown") {
+            hud.className = "hud-brackets unknown";
+            toast.className = "status-toast warn";
+            toast.innerHTML = `⚠️ <strong>UNKNOWN FACE:</strong> (${res.sim_pct}% match) - Please step closer`;
+            
+            setTimeout(() => {
+              if (isRunning) {
+                hud.className = "hud-brackets";
+                toast.className = "status-toast";
+                toast.innerText = "🔍 Move in front of camera to mark attendance";
+              }
+            }, 1800);
+          } else if (res.status === "no_face") {
+            hud.className = "hud-brackets";
+            toast.className = "status-toast";
+            toast.innerText = "🔍 Looking for faces... Please position your face inside the box";
+          }
+        }
+      }
+    });
+
+    // Start on load
+    window.addEventListener("DOMContentLoaded", initCamera);
+  </script>
+</body>
+</html>

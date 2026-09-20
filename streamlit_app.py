@@ -1,15 +1,35 @@
 import os
 import sys
 import time
+import base64
 from datetime import date, datetime
 import cv2
 import numpy as np
 import pandas as pd
 import streamlit as st
+import streamlit.components.v1 as components
 from PIL import Image
 
 # Ensure project root is in sys.path
 sys.path.insert(0, os.path.abspath("."))
+
+# Declare browser-based live camera auto-scanner component
+COMPONENT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "live_camera_component")
+live_camera_scanner = components.declare_component("live_camera_scanner", path=COMPONENT_DIR)
+
+
+def decode_base64_to_cv2(data_url: str):
+    """Convert base64 data URL from browser canvas to OpenCV BGR numpy array."""
+    try:
+        if not data_url or "," not in data_url:
+            return None
+        _, encoded = data_url.split(",", 1)
+        img_bytes = base64.b64decode(encoded)
+        nparr = np.frombuffer(img_bytes, np.uint8)
+        frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+        return frame
+    except Exception:
+        return None
 
 from app.core.config import settings
 from app.db.session import SessionLocal, init_db
@@ -213,120 +233,76 @@ elif menu_choice == "📸 Take Attendance (Kiosk)":
         with col_setup2:
             capture_mode = st.radio(
                 "Mode",
-                ["🎥 Live Continuous Auto-Scanner (Hands-Free)", "📸 Manual Snapshot"],
+                [
+                    "🔴 Live Hands-Free Auto-Attendance (Browser Webcam)",
+                    "💻 Hardware Local Webcam (OpenCV Direct Loop)",
+                    "📸 Manual Snapshot (Single Photo)"
+                ],
                 horizontal=False
             )
 
         # ----------------------------------------------------------------------
-        # MODE 1: LIVE CONTINUOUS CAMERA AUTO-SCANNER (HANDS-FREE)
+        # MODE 1: LIVE HANDS-FREE AUTO-ATTENDANCE (BROWSER WEBCAM - WORKS ANYWHERE)
         # ----------------------------------------------------------------------
-        if capture_mode == "🎥 Live Continuous Auto-Scanner (Hands-Free)":
-            st.markdown("""
-            <div style="background: rgba(56, 189, 248, 0.08); border-left: 4px solid #38bdf8; padding: 10px 16px; border-radius: 6px; margin-bottom: 15px;">
-                <strong>⚡ Hands-Free Auto-Attendance:</strong> When the live scanner is active, simply stand in front of the camera. The AI will automatically detect your face, verify identity, and mark your attendance with zero button clicks!
-            </div>
-            """, unsafe_allow_html=True)
-
-            c_ctrl1, c_ctrl2, c_cam = st.columns([1.2, 1.2, 1.6])
-            with c_ctrl1:
-                if not st.session_state.live_kiosk_active:
-                    if st.button("🟢 Start Live Auto-Scanner", type="primary", use_container_width=True):
-                        st.session_state.live_kiosk_active = True
-                        st.rerun()
-                else:
-                    if st.button("⏹️ Stop Live Scanner", type="secondary", use_container_width=True):
-                        st.session_state.live_kiosk_active = False
-                        st.rerun()
-            with c_ctrl2:
-                if st.button("🗑️ Clear Session Feed", use_container_width=True):
-                    st.session_state.live_recent_logs = []
-                    st.session_state.live_cooldown = {}
-                    st.rerun()
-            with c_cam:
-                cam_idx = st.selectbox("Webcam Device Index", [0, 1, 2], index=0, help="Index 0 is built-in camera; 1 or 2 for USB webcams.")
-
-            col_video, col_feed = st.columns([1.5, 1])
+        if capture_mode == "🔴 Live Hands-Free Auto-Attendance (Browser Webcam)":
+            col_video, col_feed = st.columns([1.4, 1])
 
             with col_video:
-                video_spot = st.empty()
-                status_banner = st.empty()
+                st.markdown("""
+                <div style="background: rgba(56, 189, 248, 0.08); border-left: 4px solid #38bdf8; padding: 10px 16px; border-radius: 6px; margin-bottom: 12px;">
+                    <strong>⚡ Real-Time Auto-Attendance Active:</strong> Look or step in front of your camera. The live AI continuously tracks your face, verifies identity, and automatically marks your attendance without clicking any buttons!
+                </div>
+                """, unsafe_allow_html=True)
+
+                # Render browser live camera component
+                comp_event = live_camera_scanner(
+                    last_result=st.session_state.get("last_kiosk_result"),
+                    key="browser_auto_kiosk"
+                )
 
             with col_feed:
                 st.markdown("### 📋 Live Check-in Feed")
-                table_spot = st.empty()
                 if st.session_state.live_recent_logs:
-                    table_spot.dataframe(pd.DataFrame(st.session_state.live_recent_logs), use_container_width=True)
+                    st.dataframe(pd.DataFrame(st.session_state.live_recent_logs), use_container_width=True)
                 else:
-                    table_spot.info("Waiting for students to check in...")
+                    st.info("Waiting for students to step in front of the camera...")
 
-            if st.session_state.live_kiosk_active:
-                cap = cv2.VideoCapture(cam_idx)
-                if not cap.isOpened():
-                    st.error(f"❌ Could not open webcam at device index {cam_idx}. If you are accessing remotely via Streamlit Cloud or another app (like Zoom or Teams) is using the camera, please close it or switch to 'Manual Snapshot' mode.")
-                    st.session_state.live_kiosk_active = False
-                    st.stop()
+                if st.button("🗑️ Clear Session Feed", use_container_width=True, key="clear_feed_btn"):
+                    st.session_state.live_recent_logs = []
+                    st.session_state.live_cooldown = {}
+                    st.session_state.last_kiosk_result = None
+                    st.rerun()
 
-                cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-                cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+            # Process incoming frame from browser component
+            if comp_event and isinstance(comp_event, dict) and "image_data" in comp_event:
+                ev_ts = comp_event.get("timestamp", 0)
+                if ev_ts and ev_ts != st.session_state.get("last_processed_ev_ts", 0):
+                    st.session_state.last_processed_ev_ts = ev_ts
 
-                status_banner.success("🟢 **Live Camera Active!** Looking for faces...")
-                last_detection_ts = 0.0
-                cached_detections = []
-                last_marked_alert_until = 0.0
-                last_marked_name = ""
+                    frame_bgr = decode_base64_to_cv2(comp_event["image_data"])
+                    if frame_bgr is not None:
+                        # 1. Low light check & enhancement
+                        is_low, _ = detect_low_light(frame_bgr)
+                        proc_frame, _ = enhance_low_light(frame_bgr) if is_low else (frame_bgr, {})
 
-                try:
-                    while st.session_state.live_kiosk_active:
-                        ret, frame = cap.read()
-                        if not ret:
-                            status_banner.warning("⚠️ Camera stream paused or disconnected.")
-                            break
+                        # 2. Face Detection
+                        faces = detect_faces(proc_frame, apply_low_light_check=False)
+                        if not faces:
+                            st.session_state.last_kiosk_result = {"status": "no_face"}
+                        else:
+                            face = faces[0]
+                            fcrop = face["face_crop"]
+                            landmarks = face.get("landmarks")
 
-                        h, w = frame.shape[:2]
-                        now_ts = time.time()
-                        disp_frame = frame.copy()
-
-                        # Draw HUD corner targeting brackets
-                        m = 40
-                        blen = 35
-                        chud = (220, 200, 100)
-                        cv2.line(disp_frame, (m, m), (m + blen, m), chud, 2)
-                        cv2.line(disp_frame, (m, m), (m, m + blen), chud, 2)
-                        cv2.line(disp_frame, (w - m, m), (w - m - blen, m), chud, 2)
-                        cv2.line(disp_frame, (w - m, m), (w - m, m + blen), chud, 2)
-                        cv2.line(disp_frame, (m, h - m), (m + blen, h - m), chud, 2)
-                        cv2.line(disp_frame, (m, h - m), (m, h - m - blen), chud, 2)
-                        cv2.line(disp_frame, (w - m, h - m), (w - m - blen, h - m), chud, 2)
-                        cv2.line(disp_frame, (w - m, h - m), (w - m, h - m - blen), chud, 2)
-
-                        # Process AI Recognition every ~280ms for high-FPS rendering
-                        if (now_ts - last_detection_ts) > 0.28:
-                            last_detection_ts = now_ts
-                            cached_detections = []
-
-                            # Selective low light check
-                            is_low, _ = detect_low_light(frame)
-                            proc_frame, _ = enhance_low_light(frame) if is_low else (frame, {})
-
-                            faces = detect_faces(proc_frame, apply_low_light_check=False)
-
-                            for face in faces:
-                                bx, by, bw, bh = face["bbox"]
-                                fcrop = face["face_crop"]
-                                landmarks = face.get("landmarks")
-
-                                # Passive Anti-Spoofing
-                                spoof_res = verify_anti_spoofing(face_crop=fcrop)
-                                if not spoof_res["is_live"] or spoof_res["spoof_score"] > settings.SPOOF_THRESHOLD:
-                                    cached_detections.append({
-                                        "bbox": (bx, by, bw, bh),
-                                        "color": (0, 0, 255),
-                                        "label": f"SPOOF ALERT ({round(spoof_res['spoof_score']*100)}%)",
-                                        "status": "spoof"
-                                    })
-                                    continue
-
-                                # 128-d Feature Embedding & Vector Search
+                            # 3. Passive Anti-Spoofing
+                            spoof_res = verify_anti_spoofing(face_crop=fcrop)
+                            if not spoof_res["is_live"] or spoof_res["spoof_score"] > settings.SPOOF_THRESHOLD:
+                                st.session_state.last_kiosk_result = {
+                                    "status": "spoof",
+                                    "spoof_score": round(spoof_res["spoof_score"] * 100, 1)
+                                }
+                            else:
+                                # 4. 128-d Feature Embedding & Vector Search
                                 aligned = align_face(fcrop, landmarks)
                                 emb = generate_face_embedding(aligned)
                                 match = search_similar_face(emb, db)
@@ -336,120 +312,234 @@ elif menu_choice == "📸 Take Attendance (Kiosk)":
                                     sim_pct = round(match["similarity"] * 100, 1)
                                     student = db.query(Student).filter(Student.id == student_id).first()
 
-                                    if not student:
-                                        continue
+                                    if student:
+                                        # Check enrollment
+                                        is_enrolled = db.query(StudentSubject).filter(
+                                            StudentSubject.student_id == student_id,
+                                            StudentSubject.subject_id == selected_subject_id
+                                        ).first()
 
-                                    # Check enrollment in subject
-                                    is_enrolled = db.query(StudentSubject).filter(
-                                        StudentSubject.student_id == student_id,
-                                        StudentSubject.subject_id == selected_subject_id
-                                    ).first()
+                                        if not is_enrolled:
+                                            st.session_state.last_kiosk_result = {
+                                                "status": "not_enrolled",
+                                                "student_name": student.name
+                                            }
+                                        else:
+                                            today = date.today()
+                                            already_marked_db = db.query(Attendance).filter(
+                                                Attendance.student_id == student_id,
+                                                Attendance.subject_id == selected_subject_id,
+                                                Attendance.session_date == today
+                                            ).first()
 
-                                    if not is_enrolled:
-                                        cached_detections.append({
-                                            "bbox": (bx, by, bw, bh),
-                                            "color": (0, 140, 255),
-                                            "label": f"NOT ENROLLED: {student.name}",
-                                            "status": "not_enrolled"
-                                        })
-                                        continue
+                                            now_ts = time.time()
+                                            last_mark_ts = st.session_state.live_cooldown.get(student_id, 0)
+                                            in_cooldown = (now_ts - last_mark_ts) < 15.0
 
-                                    today = date.today()
-                                    already_marked_db = db.query(Attendance).filter(
-                                        Attendance.student_id == student_id,
-                                        Attendance.subject_id == selected_subject_id,
-                                        Attendance.session_date == today
-                                    ).first()
+                                            if already_marked_db or in_cooldown:
+                                                st.session_state.last_kiosk_result = {
+                                                    "status": "already_marked",
+                                                    "student_name": student.name,
+                                                    "sim_pct": sim_pct
+                                                }
+                                            else:
+                                                # COMMIT NEW ATTENDANCE
+                                                new_att = Attendance(
+                                                    student_id=student_id,
+                                                    subject_id=selected_subject_id,
+                                                    session_date=today,
+                                                    session_time=datetime.now().time(),
+                                                    status=AttendanceStatus.PRESENT,
+                                                    confidence=match["similarity"],
+                                                    spoof_score=spoof_res["spoof_score"],
+                                                    image_quality_score=95.0,
+                                                    verification_method="BROWSER_AUTO_LIVE"
+                                                )
+                                                try:
+                                                    db.add(new_att)
+                                                    db.commit()
+                                                    st.session_state.live_cooldown[student_id] = now_ts
+                                                    st.session_state.live_recent_logs.insert(0, {
+                                                        "Student Name": student.name,
+                                                        "Roll Number": student.student_code,
+                                                        "Time": datetime.now().strftime("%I:%M:%S %p"),
+                                                        "Match": f"{sim_pct}%",
+                                                        "Status": "✅ Present (Auto-Logged)"
+                                                    })
+                                                    st.session_state.live_recent_logs = st.session_state.live_recent_logs[:15]
+                                                    st.session_state.last_kiosk_result = {
+                                                        "status": "marked",
+                                                        "student_name": student.name,
+                                                        "sim_pct": sim_pct
+                                                    }
+                                                except Exception:
+                                                    db.rollback()
+                                else:
+                                    highest_sim = round(match["similarity"] * 100, 1) if match else 0
+                                    st.session_state.last_kiosk_result = {
+                                        "status": "unknown",
+                                        "sim_pct": highest_sim
+                                    }
+                    st.rerun()
 
-                                    last_mark_ts = st.session_state.live_cooldown.get(student_id, 0)
-                                    in_cooldown = (now_ts - last_mark_ts) < 15.0
+        # ----------------------------------------------------------------------
+        # MODE 2: HARDWARE LOCAL WEBCAM (DIRECT OPENCV LOOP)
+        # ----------------------------------------------------------------------
+        elif capture_mode == "💻 Hardware Local Webcam (OpenCV Direct Loop)":
+            c_ctrl1, c_ctrl2, c_cam = st.columns([1.2, 1.2, 1.6])
+            with c_ctrl1:
+                if not st.session_state.live_kiosk_active:
+                    if st.button("🟢 Start Local Hardware Scanner", type="primary", use_container_width=True):
+                        st.session_state.live_kiosk_active = True
+                        st.rerun()
+                else:
+                    if st.button("⏹️ Stop Local Scanner", type="secondary", use_container_width=True):
+                        st.session_state.live_kiosk_active = False
+                        st.rerun()
+            with c_ctrl2:
+                if st.button("🗑️ Reset Logs", use_container_width=True, key="reset_logs_local"):
+                    st.session_state.live_recent_logs = []
+                    st.session_state.live_cooldown = {}
+                    st.rerun()
+            with c_cam:
+                cam_idx = st.selectbox("Device Index", [0, 1, 2], index=0, help="0 for built-in, 1/2 for USB")
 
-                                    if already_marked_db or in_cooldown:
-                                        cached_detections.append({
-                                            "bbox": (bx, by, bw, bh),
-                                            "color": (255, 200, 0),
-                                            "label": f"PRESENT: {student.name} (Already Logged)",
-                                            "status": "already_marked"
-                                        })
-                                    else:
-                                        # AUTOMATIC ATTENDANCE COMMIT
-                                        new_att = Attendance(
-                                            student_id=student_id,
-                                            subject_id=selected_subject_id,
-                                            session_date=today,
-                                            session_time=datetime.now().time(),
-                                            status=AttendanceStatus.PRESENT,
-                                            confidence=match["similarity"],
-                                            spoof_score=spoof_res["spoof_score"],
-                                            image_quality_score=95.0,
-                                            verification_method="LIVE_AUTO_STREAM"
-                                        )
-                                        try:
-                                            db.add(new_att)
-                                            db.commit()
-                                            st.session_state.live_cooldown[student_id] = now_ts
-                                            st.session_state.live_recent_logs.insert(0, {
-                                                "Student Name": student.name,
-                                                "Roll Number": student.student_code,
-                                                "Time": datetime.now().strftime("%I:%M:%S %p"),
-                                                "Match": f"{sim_pct}%",
-                                                "Status": "✅ Present (Auto-Logged)"
+            col_video, col_feed = st.columns([1.5, 1])
+
+            with col_video:
+                video_spot = st.empty()
+                status_banner = st.empty()
+
+            with col_feed:
+                st.markdown("### 📋 Local Hardware Feed")
+                table_spot = st.empty()
+                if st.session_state.live_recent_logs:
+                    table_spot.dataframe(pd.DataFrame(st.session_state.live_recent_logs), use_container_width=True)
+
+            if st.session_state.live_kiosk_active:
+                cap = cv2.VideoCapture(cam_idx)
+                if not cap.isOpened():
+                    st.error(f"❌ Could not open webcam at index {cam_idx}. If you are on Streamlit Cloud or another app is using the camera, use Mode 1 above.")
+                    st.session_state.live_kiosk_active = False
+                    st.stop()
+
+                cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+                cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+                status_banner.success("🟢 **Local Camera Active!** Looking for faces...")
+                last_detection_ts = 0.0
+                cached_detections = []
+                last_marked_alert_until = 0.0
+                last_marked_name = ""
+
+                try:
+                    while st.session_state.live_kiosk_active:
+                        ret, frame = cap.read()
+                        if not ret:
+                            break
+
+                        h, w = frame.shape[:2]
+                        now_ts = time.time()
+                        disp_frame = frame.copy()
+
+                        if (now_ts - last_detection_ts) > 0.28:
+                            last_detection_ts = now_ts
+                            cached_detections = []
+
+                            is_low, _ = detect_low_light(frame)
+                            proc_frame, _ = enhance_low_light(frame) if is_low else (frame, {})
+                            faces = detect_faces(proc_frame, apply_low_light_check=False)
+
+                            for face in faces:
+                                bx, by, bw, bh = face["bbox"]
+                                fcrop = face["face_crop"]
+                                landmarks = face.get("landmarks")
+
+                                spoof_res = verify_anti_spoofing(face_crop=fcrop)
+                                if not spoof_res["is_live"] or spoof_res["spoof_score"] > settings.SPOOF_THRESHOLD:
+                                    cached_detections.append({
+                                        "bbox": (bx, by, bw, bh), "color": (0, 0, 255),
+                                        "label": f"SPOOF ({round(spoof_res['spoof_score']*100)}%)", "status": "spoof"
+                                    })
+                                    continue
+
+                                aligned = align_face(fcrop, landmarks)
+                                emb = generate_face_embedding(aligned)
+                                match = search_similar_face(emb, db)
+
+                                if match and match.get("recognized"):
+                                    student_id = match["student_id"]
+                                    sim_pct = round(match["similarity"] * 100, 1)
+                                    student = db.query(Student).filter(Student.id == student_id).first()
+
+                                    if student:
+                                        today = date.today()
+                                        already_db = db.query(Attendance).filter(
+                                            Attendance.student_id == student_id,
+                                            Attendance.subject_id == selected_subject_id,
+                                            Attendance.session_date == today
+                                        ).first()
+
+                                        last_mark_ts = st.session_state.live_cooldown.get(student_id, 0)
+                                        in_cooldown = (now_ts - last_mark_ts) < 15.0
+
+                                        if already_db or in_cooldown:
+                                            cached_detections.append({
+                                                "bbox": (bx, by, bw, bh), "color": (255, 200, 0),
+                                                "label": f"PRESENT: {student.name}", "status": "already_marked"
                                             })
-                                            st.session_state.live_recent_logs = st.session_state.live_recent_logs[:15]
-                                            last_marked_alert_until = now_ts + 3.0
-                                            last_marked_name = f"{student.name} ({student.student_code})"
-                                        except Exception:
-                                            db.rollback()
+                                        else:
+                                            new_att = Attendance(
+                                                student_id=student_id, subject_id=selected_subject_id,
+                                                session_date=today, session_time=datetime.now().time(),
+                                                status=AttendanceStatus.PRESENT, confidence=match["similarity"],
+                                                spoof_score=spoof_res["spoof_score"], image_quality_score=95.0,
+                                                verification_method="OPENCV_LOCAL_KIOSK"
+                                            )
+                                            try:
+                                                db.add(new_att)
+                                                db.commit()
+                                                st.session_state.live_cooldown[student_id] = now_ts
+                                                st.session_state.live_recent_logs.insert(0, {
+                                                    "Student Name": student.name, "Roll Number": student.student_code,
+                                                    "Time": datetime.now().strftime("%I:%M:%S %p"), "Match": f"{sim_pct}%",
+                                                    "Status": "✅ Present (Auto-Logged)"
+                                                })
+                                                last_marked_alert_until = now_ts + 3.0
+                                                last_marked_name = student.name
+                                            except Exception:
+                                                db.rollback()
 
-                                        cached_detections.append({
-                                            "bbox": (bx, by, bw, bh),
-                                            "color": (0, 255, 0),
-                                            "label": f"VERIFIED: {student.name} ({sim_pct}%)",
-                                            "status": "marked"
-                                        })
+                                            cached_detections.append({
+                                                "bbox": (bx, by, bw, bh), "color": (0, 255, 0),
+                                                "label": f"VERIFIED: {student.name} ({sim_pct}%)", "status": "marked"
+                                            })
                                 else:
                                     highest_sim = round(match["similarity"] * 100, 1) if match else 0
                                     cached_detections.append({
-                                        "bbox": (bx, by, bw, bh),
-                                        "color": (0, 165, 255),
-                                        "label": f"UNKNOWN FACE ({highest_sim}%)",
-                                        "status": "unknown"
+                                        "bbox": (bx, by, bw, bh), "color": (0, 165, 255),
+                                        "label": f"UNKNOWN ({highest_sim}%)", "status": "unknown"
                                     })
 
-                        # Draw bounding boxes and labels
                         for d in cached_detections:
                             bx, by, bw, bh = d["bbox"]
-                            b_col = d["color"]
-                            b_lbl = d["label"]
+                            cv2.rectangle(disp_frame, (bx, by), (bx + bw, by + bh), d["color"], 2)
+                            cv2.putText(disp_frame, d["label"], (bx + 5, max(15, by - 5)), cv2.FONT_HERSHEY_DUPLEX, 0.55, (0, 255, 0), 1)
 
-                            cv2.rectangle(disp_frame, (bx, by), (bx + bw, by + bh), b_col, 2)
-                            (tw, th), _ = cv2.getTextSize(b_lbl, cv2.FONT_HERSHEY_DUPLEX, 0.55, 1)
-                            cv2.rectangle(disp_frame, (bx, max(0, by - th - 10)), (bx + tw + 10, by), b_col, -1)
-                            cv2.putText(disp_frame, b_lbl, (bx + 5, max(12, by - 4)), cv2.FONT_HERSHEY_DUPLEX, 0.55, (0, 0, 0), 1, cv2.LINE_AA)
-
-                        # Top green banner when attendance was just marked
                         if now_ts < last_marked_alert_until:
-                            cv2.rectangle(disp_frame, (0, 0), (w, 55), (0, 200, 0), -1)
-                            cv2.putText(disp_frame, f"ATTENDANCE MARKED: {last_marked_name}", (15, 36), cv2.FONT_HERSHEY_DUPLEX, 0.75, (0, 0, 0), 2, cv2.LINE_AA)
+                            cv2.rectangle(disp_frame, (0, 0), (w, 50), (0, 200, 0), -1)
+                            cv2.putText(disp_frame, f"ATTENDANCE MARKED: {last_marked_name}", (15, 33), cv2.FONT_HERSHEY_DUPLEX, 0.75, (0, 0, 0), 2)
 
-                        # Bottom status text
-                        cv2.putText(disp_frame, "LIVE SCANNER ACTIVE - STAND IN FRONT OF CAMERA TO MARK", (m, h - m + 24), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (100, 255, 100), 1, cv2.LINE_AA)
-
-                        # Stream to web view
                         video_spot.image(disp_frame, channels="BGR", use_container_width=True)
-
-                        # Update table feed
                         if st.session_state.live_recent_logs:
                             table_spot.dataframe(pd.DataFrame(st.session_state.live_recent_logs), use_container_width=True)
-
                         time.sleep(0.025)
                 finally:
                     cap.release()
             else:
-                video_spot.info("👉 Click **'Start Live Auto-Scanner'** above to activate continuous video detection.")
+                video_spot.info("👉 Click **'Start Local Hardware Scanner'** above to activate continuous video detection.")
 
         # ----------------------------------------------------------------------
-        # MODE 2: MANUAL SNAPSHOT / REMOTE BROWSER CAPTURE
+        # MODE 3: MANUAL SNAPSHOT / SINGLE PHOTO
         # ----------------------------------------------------------------------
         else:
             col_left, col_right = st.columns([1.5, 1])
@@ -473,7 +563,7 @@ elif menu_choice == "📸 Take Attendance (Kiosk)":
                     st.rerun()
 
             with col_left:
-                st.subheader("📹 Real-Time Camera View")
+                st.subheader("📹 Single Photo Snapshot")
                 camera_image = st.camera_input("Position face squarely inside frame and click Take Photo")
 
                 if camera_image is not None:
@@ -483,22 +573,15 @@ elif menu_choice == "📸 Take Attendance (Kiosk)":
                     with st.spinner("Executing 7-Stage Verification Pipeline..."):
                         t_start = time.time()
 
-                        # Stage 1: Quality Check
                         q_res = assess_frame_quality(frame_bgr)
                         if not q_res["quality_ok"]:
                             st.error(f"❌ Quality Rejection: {q_res['actionable_feedback']}")
                             st.stop()
 
-                        # Stage 2: Low-Light Check & Enhancement
-                        is_low, light_metrics = detect_low_light(frame_bgr)
-                        if is_low:
-                            processed_frame, _ = enhance_low_light(frame_bgr)
-                            st.info("🌙 Low-light detected: Adaptive CLAHE & Gamma correction applied.")
-                        else:
-                            processed_frame = frame_bgr
+                        is_low, _ = detect_low_light(frame_bgr)
+                        proc_frame, _ = enhance_low_light(frame_bgr) if is_low else (frame_bgr, {})
 
-                        # Stage 3: Face Detection
-                        faces = detect_faces(processed_frame, apply_low_light_check=False)
+                        faces = detect_faces(proc_frame, apply_low_light_check=False)
                         if not faces:
                             st.error("❌ Face Not Detected: Please look directly into the camera.")
                             st.stop()
@@ -507,7 +590,6 @@ elif menu_choice == "📸 Take Attendance (Kiosk)":
                         face_crop = face["face_crop"]
                         landmarks = face.get("landmarks")
 
-                        # Stage 4: Anti-Spoofing & Liveness
                         spoof_res = verify_anti_spoofing(
                             face_crop=face_crop,
                             challenge_token=chal["challenge_token"],
@@ -518,11 +600,8 @@ elif menu_choice == "📸 Take Attendance (Kiosk)":
                             st.session_state.current_challenge = generate_anti_spoof_challenge()
                             st.stop()
 
-                        # Stage 5: 128-d Feature Embedding
                         aligned = align_face(face_crop, landmarks)
                         emb_vec = generate_face_embedding(aligned)
-
-                        # Stage 6: Vector Search
                         match_res = search_similar_face(emb_vec, db)
                         t_elapsed_ms = round((time.time() - t_start) * 1000, 1)
 
@@ -533,7 +612,6 @@ elif menu_choice == "📸 Take Attendance (Kiosk)":
                         student_id = match_res["student_id"]
                         matched_student = db.query(Student).filter(Student.id == student_id).first()
 
-                        # Check enrollment in subject
                         is_enrolled = db.query(StudentSubject).filter(
                             StudentSubject.student_id == student_id,
                             StudentSubject.subject_id == selected_subject_id
@@ -543,7 +621,6 @@ elif menu_choice == "📸 Take Attendance (Kiosk)":
                             st.error(f"❌ Student {matched_student.name} ({matched_student.student_code}) is NOT enrolled in this subject course!")
                             st.stop()
 
-                        # Stage 7: Database Commit with Unique Constraint Check
                         today = date.today()
                         now_time = datetime.now().time()
 

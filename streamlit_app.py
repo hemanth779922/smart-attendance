@@ -46,7 +46,7 @@ from app.ai.face_engine import (
     compute_cosine_similarity
 )
 from app.ai.low_light import detect_low_light, enhance_low_light, assess_face_quality
-from app.ai.quality_assessment import assess_frame_quality
+from app.ai.quality_assessment import assess_frame_quality, validate_pure_enrollment_quality
 from app.ai.anti_spoofing import verify_anti_spoofing, generate_anti_spoof_challenge
 from app.ai.vector_search import search_similar_face
 from sqlalchemy.exc import IntegrityError
@@ -690,43 +690,76 @@ elif menu_choice == "👤 Smart Face Enrollment":
             )
             enr_image = st.camera_input("Capture Face Snapshot")
 
-            if enr_image is not None and st.button("💾 Submit Pose Sample"):
+            if enr_image is not None:
                 pil_img = Image.open(enr_image)
                 frame_bgr = pil_to_cv2(pil_img)
-
-                q_res = assess_frame_quality(frame_bgr)
-                if not q_res["quality_ok"]:
-                    st.error(f"❌ Rejected: {q_res['actionable_feedback']}")
-                    st.stop()
-
                 faces = detect_faces(frame_bgr)
-                if not faces:
-                    st.error("❌ No face detected. Position yourself clearly in view.")
-                    st.stop()
 
-                face = faces[0]
-                aligned = align_face(face["face_crop"], face.get("landmarks"))
-                new_vec = generate_face_embedding(aligned)
-
-                # Duplicate identity check
-                dup_match = search_similar_face(new_vec, db)
-                if dup_match["recognized"] and dup_match["student_id"] != selected_student_id:
-                    dup_student = db.query(Student).filter(Student.id == dup_match["student_id"]).first()
-                    st.error(f"🚫 Conflict Detected! This face strongly matches enrolled student: {dup_student.name} ({dup_student.student_code}).")
-                    st.stop()
-
-                # Save embedding
-                new_fe = FaceEmbedding(
-                    student_id=selected_student_id,
-                    pose=target_pose,
-                    quality_score=q_res["blur_score"],
-                    is_active=True
+                # Pure Biometric Quality Assessment (100% pure standard)
+                strict_liveness = (target_pose != "any")
+                pure_val = validate_pure_enrollment_quality(
+                    frame=frame_bgr,
+                    detected_faces=faces,
+                    target_pose=target_pose,
+                    strict_liveness=strict_liveness
                 )
-                new_fe.set_embedding(new_vec)
-                db.add(new_fe)
-                db.commit()
-                st.success(f"✅ Pose sample '{target_pose.upper()}' saved successfully!")
-                st.rerun()
+
+                st.markdown("### 🔬 Biometric Purity Diagnostic")
+                p_score = pure_val["purity_score"]
+                is_pure = pure_val["is_pure"]
+                checks = pure_val["checks"]
+                metrics = pure_val["metrics"]
+
+                # Purity Progress Bar and Metric Badge
+                st.progress(p_score / 100.0)
+                if is_pure:
+                    st.success(f"🌟 **100% PURE BIOMETRIC QUALITY ({p_score}%)** — Sample meets all high-precision standards!")
+                else:
+                    st.error(f"❌ **QUALITY REJECTED ({p_score}%)** — {pure_val['actionable_feedback']}")
+
+                # Diagnostic checks matrix
+                c_chk1, c_chk2 = st.columns(2)
+                with c_chk1:
+                    st.write("👤 Single Person: " + ("✅ Pass" if checks.get("single_face") else "❌ Fail (Multiple)"))
+                    st.write(f"🔍 Sharpness: " + ("✅ Crisp" if checks.get("sharpness") else "❌ Blurred") + f" ({metrics.get('blur_score', 0)})")
+                    st.write(f"💡 Illumination: " + ("✅ Balanced" if checks.get("lighting") else "❌ Poor") + f" ({metrics.get('brightness', 0)})")
+                    st.write(f"⚖️ Symmetry: " + ("✅ Uniform" if checks.get("symmetry") else "❌ Shadowed") + f" ({metrics.get('lighting_symmetry', 0)})")
+                with c_chk2:
+                    st.write(f"📐 Minimum Size: " + ("✅ Pass" if checks.get("face_size") else "❌ Too Small") + f" ({metrics.get('face_width', 0)}x{metrics.get('face_height', 0)})")
+                    st.write("👀 Landmarks: " + ("✅ Visible" if checks.get("landmarks") else "❌ Occluded"))
+                    st.write(f"🛡️ Anti-Spoof Liveness: " + ("✅ Live Human" if checks.get("liveness") else "❌ Spoof/Screen"))
+                    st.write(f"🎯 Target Pose '{target_pose}': " + ("✅ Aligned" if checks.get("pose_match") else "❌ Off-angle") + f" ({metrics.get('yaw_angle', 0)}°)")
+
+                if is_pure:
+                    if st.button("💾 Save 100% Pure Sample"):
+                        face = faces[0]
+                        aligned = align_face(face["face_crop"], face.get("landmarks"))
+                        new_vec = generate_face_embedding(aligned)
+
+                        # Duplicate identity check
+                        dup_match = search_similar_face(new_vec, db)
+                        if dup_match["recognized"] and dup_match["student_id"] != selected_student_id:
+                            dup_student = db.query(Student).filter(Student.id == dup_match["student_id"]).first()
+                            dup_name = dup_student.name if dup_student else "Another Student"
+                            dup_code = dup_student.student_code if dup_student else ""
+                            st.error(f"🚫 Conflict Detected! This face strongly matches enrolled student: {dup_name} ({dup_code}).")
+                            st.stop()
+
+                        # Save embedding with purity score
+                        new_fe = FaceEmbedding(
+                            student_id=selected_student_id,
+                            pose=pure_val["detected_pose"],
+                            quality_score=pure_val["purity_score"],
+                            is_active=True
+                        )
+                        new_fe.set_embedding(new_vec)
+                        db.add(new_fe)
+                        db.commit()
+                        st.success(f"✅ 100% Pure '{target_pose.upper()}' sample committed to database!")
+                        st.rerun()
+                else:
+                    st.button("💾 Save Sample", disabled=True, help="Only samples with 100% pure biometric quality can be saved.")
+                    st.caption("ℹ️ Adjust your lighting, step closer, or hold still to achieve a 100% pure score.")
 
         with c2:
             st.subheader("📋 Enrolled Poses")

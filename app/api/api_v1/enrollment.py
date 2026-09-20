@@ -1,4 +1,4 @@
-﻿import base64
+import base64
 import logging
 from typing import List
 import cv2
@@ -19,7 +19,7 @@ from app.schemas.enrollment import (
     ResetEnrollmentRequest
 )
 from app.ai.low_light import detect_low_light, enhance_low_light, assess_face_quality
-from app.ai.quality_assessment import assess_frame_quality
+from app.ai.quality_assessment import assess_frame_quality, validate_pure_enrollment_quality
 from app.ai.face_engine import detect_faces, align_face, estimate_pose, generate_face_embedding
 from app.ai.vector_search import search_similar_face
 from app.api.deps import require_roles, get_current_active_user
@@ -117,51 +117,31 @@ def submit_enrollment_sample(
     face_crop = face_info["face_crop"]
     landmarks = face_info["landmarks"]
 
-    # Step 3: Face Quality
-    face_quality = assess_face_quality(face_crop)
-    if not face_quality["is_usable"]:
+    # Step 3: Pure Biometric Quality Assessment
+    pure_val = validate_pure_enrollment_quality(
+        frame=processed_frame,
+        detected_faces=detected,
+        target_pose=target_pose,
+        strict_liveness=(target_pose != "any")
+    )
+
+    if not pure_val["is_pure"]:
         return EnrollmentSampleResponse(
             accepted=False,
-            quality_score=face_quality["quality_score"],
-            detected_pose="unknown",
+            quality_score=pure_val["purity_score"] / 100.0,
+            detected_pose=pure_val["detected_pose"],
             target_pose=target_pose,
             samples_collected=get_sample_count(student.id, db),
             samples_required=settings.ENROLLMENT_MIN_SAMPLES,
             status="collecting",
-            feedback_message=quality_meta["actionable_feedback"],
-            lighting_ok=not is_low_light,
-            blur_ok=face_quality["blur_score"] >= settings.BLUR_THRESHOLD,
-            size_ok=min(face_crop.shape[:2]) >= settings.MIN_FACE_SIZE,
-            pose_ok=False
+            feedback_message=pure_val["actionable_feedback"],
+            lighting_ok=pure_val["checks"]["lighting"],
+            blur_ok=pure_val["checks"]["sharpness"],
+            size_ok=pure_val["checks"]["face_size"],
+            pose_ok=pure_val["checks"]["pose_match"]
         )
 
-    # Step 4: Pose Estimation
-    detected_pose, pose_meta = estimate_pose(face_crop, landmarks)
-    
-    # Check if detected pose matches requested pose or is acceptable
-    pose_ok = (target_pose == "any") or (detected_pose == target_pose)
-    if not pose_ok:
-        pose_guidance = {
-            "frontal": "Look straight at the camera",
-            "left": "Turn your head slightly to your left",
-            "right": "Turn your head slightly to your right",
-            "smile": "Smile naturally for the camera"
-        }.get(target_pose, f"Adopt {target_pose} pose")
-
-        return EnrollmentSampleResponse(
-            accepted=False,
-            quality_score=face_quality["quality_score"],
-            detected_pose=detected_pose,
-            target_pose=target_pose,
-            samples_collected=get_sample_count(student.id, db),
-            samples_required=settings.ENROLLMENT_MIN_SAMPLES,
-            status="collecting",
-            feedback_message=f"Detected '{detected_pose}' pose. {pose_guidance}.",
-            lighting_ok=True,
-            blur_ok=True,
-            size_ok=True,
-            pose_ok=False
-        )
+    detected_pose = pure_val["detected_pose"]
 
     # Step 5: Align face & generate embedding
     aligned_face = align_face(face_crop, landmarks)
@@ -172,7 +152,7 @@ def submit_enrollment_sample(
     if dup_match and dup_match["recognized"] and dup_match["student_id"] != student.id:
         return EnrollmentSampleResponse(
             accepted=False,
-            quality_score=face_quality["quality_score"],
+            quality_score=pure_val["purity_score"] / 100.0,
             detected_pose=detected_pose,
             target_pose=target_pose,
             samples_collected=get_sample_count(student.id, db),
@@ -189,7 +169,7 @@ def submit_enrollment_sample(
     face_emb_record = FaceEmbedding(
         student_id=student.id,
         pose=detected_pose,
-        quality_score=face_quality["quality_score"],
+        quality_score=pure_val["purity_score"] / 100.0,
         is_active=True
     )
     face_emb_record.set_embedding(embedding_vec)
@@ -206,7 +186,7 @@ def submit_enrollment_sample(
 
     return EnrollmentSampleResponse(
         accepted=True,
-        quality_score=face_quality["quality_score"],
+        quality_score=pure_val["purity_score"] / 100.0,
         detected_pose=detected_pose,
         target_pose=target_pose,
         samples_collected=current_count,

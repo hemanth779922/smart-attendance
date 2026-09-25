@@ -698,7 +698,10 @@ elif menu_choice == "👤 Smart Face Enrollment":
             )
 
             st.markdown("##### 🏛️ Gate Biometric Viewfinder (Align in Oval)")
-            purity_feedback = st.session_state.get(f"last_purity_{selected_student_id}")
+            last_purity_key = f"last_purity_{selected_student_id}"
+            last_eval_ts_key = f"last_eval_ts_{selected_student_id}"
+            purity_feedback = st.session_state.get(last_purity_key)
+
             gate_payload = enrollment_camera_gate(
                 target_pose=target_pose,
                 purity_result=purity_feedback,
@@ -706,8 +709,30 @@ elif menu_choice == "👤 Smart Face Enrollment":
             )
 
             frame_bgr = None
-            if gate_payload and isinstance(gate_payload, dict) and gate_payload.get("image_data"):
-                frame_bgr = decode_base64_to_cv2(gate_payload["image_data"])
+            if gate_payload and isinstance(gate_payload, dict):
+                action = gate_payload.get("action")
+                if action == "reset":
+                    st.session_state.pop(last_purity_key, None)
+                    st.session_state.pop(last_eval_ts_key, None)
+                    purity_feedback = None
+                elif gate_payload.get("image_data"):
+                    img_ts = gate_payload.get("timestamp")
+                    if img_ts and img_ts != st.session_state.get(last_eval_ts_key):
+                        frame_bgr = decode_base64_to_cv2(gate_payload["image_data"])
+                        if frame_bgr is not None:
+                            faces = detect_faces(frame_bgr)
+                            strict_liveness = (target_pose != "any")
+                            pure_val = validate_pure_enrollment_quality(
+                                frame=frame_bgr,
+                                detected_faces=faces,
+                                target_pose=target_pose,
+                                strict_liveness=strict_liveness
+                            )
+                            st.session_state[last_purity_key] = pure_val
+                            st.session_state[last_eval_ts_key] = img_ts
+                            st.rerun()
+                    else:
+                        frame_bgr = decode_base64_to_cv2(gate_payload["image_data"])
 
             # Optional fallback standard input
             with st.expander("📷 Standard Camera Input (Alternative)"):
@@ -720,14 +745,16 @@ elif menu_choice == "👤 Smart Face Enrollment":
                 faces = detect_faces(frame_bgr)
 
                 # Pure Biometric Quality Assessment (100% pure standard)
-                strict_liveness = (target_pose != "any")
-                pure_val = validate_pure_enrollment_quality(
-                    frame=frame_bgr,
-                    detected_faces=faces,
-                    target_pose=target_pose,
-                    strict_liveness=strict_liveness
-                )
-                st.session_state[f"last_purity_{selected_student_id}"] = pure_val
+                pure_val = st.session_state.get(last_purity_key)
+                if pure_val is None:
+                    strict_liveness = (target_pose != "any")
+                    pure_val = validate_pure_enrollment_quality(
+                        frame=frame_bgr,
+                        detected_faces=faces,
+                        target_pose=target_pose,
+                        strict_liveness=strict_liveness
+                    )
+                    st.session_state[last_purity_key] = pure_val
 
                 st.markdown("---")
                 st.markdown("### 🔬 Biometric Purity Diagnostic")

@@ -60,36 +60,36 @@
       z-index: 5;
     }
 
-    /* The Vertical Biometric Oval Guide */
+    /* The Vertical Biometric Face Circle/Oval Guide */
     .oval-guide {
       position: absolute;
-      top: 50%;
+      top: 48%;
       left: 50%;
       transform: translate(-50%, -50%);
-      width: 250px;
-      height: 330px;
+      width: 175px;
+      height: 245px;
       border-radius: 50% / 50%;
       pointer-events: none;
       z-index: 10;
       transition: all 0.25s ease-out;
     }
 
-    /* State 1: Yellow / Pending / Unaligned */
-    .oval-guide.state-yellow {
-      border: 3.5px dashed #f59e0b;
-      box-shadow: 0 0 25px rgba(245, 158, 11, 0.45), inset 0 0 20px rgba(245, 158, 11, 0.2);
-      animation: pulseYellow 2s infinite ease-in-out;
+    /* State 1: Red / Pending / Unaligned / Below 100% */
+    .oval-guide.state-red {
+      border: 3.5px dashed #ef4444;
+      box-shadow: 0 0 25px rgba(239, 68, 68, 0.6), inset 0 0 18px rgba(239, 68, 68, 0.25);
+      animation: pulseRed 1.8s infinite ease-in-out;
     }
 
-    @keyframes pulseYellow {
-      0%, 100% { border-color: #f59e0b; box-shadow: 0 0 18px rgba(245, 158, 11, 0.35); }
-      50% { border-color: #fbbf24; box-shadow: 0 0 30px rgba(251, 191, 36, 0.65); }
+    @keyframes pulseRed {
+      0%, 100% { border-color: #ef4444; box-shadow: 0 0 18px rgba(239, 68, 68, 0.5); }
+      50% { border-color: #f87171; box-shadow: 0 0 32px rgba(248, 113, 113, 0.85); }
     }
 
-    /* State 2: Green / Perfectly Aligned & Clear */
+    /* State 2: Green / 100% Pure & Clear */
     .oval-guide.state-green {
       border: 4.5px solid #22c55e;
-      box-shadow: 0 0 35px rgba(34, 197, 94, 0.8), inset 0 0 30px rgba(34, 197, 94, 0.35);
+      box-shadow: 0 0 35px rgba(34, 197, 94, 0.85), inset 0 0 25px rgba(34, 197, 94, 0.35);
       animation: pulseGreen 1.4s infinite ease-in-out;
     }
 
@@ -107,12 +107,17 @@
       width: 100%;
       height: 100%;
       pointer-events: none;
-      opacity: 0.35;
       transition: opacity 0.2s;
     }
 
+    .state-red .oval-crosshair {
+      color: #fca5a5;
+      opacity: 0.45;
+    }
+
     .state-green .oval-crosshair {
-      opacity: 0.65;
+      color: #86efac;
+      opacity: 0.75;
     }
 
     /* Controls Panel below Viewport */
@@ -139,46 +144,33 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      gap: 8px;
-      transition: all 0.25s ease;
-      text-transform: uppercase;
+      gap: 10px;
+      cursor: pointer;
+      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
     }
 
-    /* Disabled when Yellow */
     .capture-btn.disabled {
       background: #334155;
       color: #94a3b8;
       cursor: not-allowed;
-      opacity: 0.6;
-      box-shadow: none;
+      opacity: 0.8;
+      border: 1px solid #475569;
     }
 
-    /* Enabled when Green (Gate Style) */
     .capture-btn.enabled {
-      background: linear-gradient(135deg, #10b981, #059669);
+      background: linear-gradient(135deg, #16a34a 0%, #22c55e 100%);
       color: #ffffff;
       cursor: pointer;
-      opacity: 1.0;
-      box-shadow: 0 4px 20px rgba(16, 185, 129, 0.5);
-      animation: pulseBtn 1.5s infinite;
+      box-shadow: 0 4px 15px rgba(34, 197, 94, 0.4);
+      animation: buttonReadyPulse 1.8s infinite;
     }
 
-    .capture-btn.enabled:hover {
-      background: linear-gradient(135deg, #059669, #047857);
-      transform: translateY(-1px);
-      box-shadow: 0 6px 25px rgba(16, 185, 129, 0.7);
+    @keyframes buttonReadyPulse {
+      0%, 100% { transform: scale(1); box-shadow: 0 4px 15px rgba(34, 197, 94, 0.4); }
+      50% { transform: scale(1.02); box-shadow: 0 6px 22px rgba(34, 197, 94, 0.7); }
     }
 
-    .capture-btn.enabled:active {
-      transform: translateY(1px);
-    }
-
-    @keyframes pulseBtn {
-      0%, 100% { box-shadow: 0 4px 16px rgba(16, 185, 129, 0.4); }
-      50% { box-shadow: 0 4px 28px rgba(16, 185, 129, 0.85); }
-    }
-
-    /* Retake Bar */
+    /* Retake Button Bar */
     .retake-bar {
       display: none;
       width: 100%;
@@ -235,20 +227,20 @@
         <defs>
           <mask id="ovalHoleMask">
             <rect width="600" height="450" fill="white" />
-            <ellipse cx="300" cy="225" rx="125" ry="165" fill="black" />
+            <ellipse cx="300" cy="216" rx="88" ry="122" fill="black" />
           </mask>
         </defs>
         <rect width="600" height="450" fill="rgba(10, 15, 29, 0.72)" mask="url(#ovalHoleMask)" />
       </svg>
 
       <!-- The Vertical Oval Viewfinder Guide -->
-      <div id="ovalGuide" class="oval-guide state-yellow">
+      <div id="ovalGuide" class="oval-guide state-red">
         <!-- Crosshair Guides for Chin & Eye alignment -->
-        <svg class="oval-crosshair" viewBox="0 0 250 330">
-          <line x1="45" y1="125" x2="205" y2="125" stroke="currentColor" stroke-dasharray="4 4" stroke-width="1.5" />
-          <line x1="125" y1="40" x2="125" y2="290" stroke="currentColor" stroke-dasharray="4 4" stroke-width="1.5" />
-          <circle cx="95" cy="125" r="4" fill="currentColor" opacity="0.8" />
-          <circle cx="155" cy="125" r="4" fill="currentColor" opacity="0.8" />
+        <svg class="oval-crosshair" viewBox="0 0 175 245">
+          <line x1="25" y1="92" x2="150" y2="92" stroke="currentColor" stroke-dasharray="3 3" stroke-width="1.5" />
+          <line x1="87.5" y1="20" x2="87.5" y2="225" stroke="currentColor" stroke-dasharray="3 3" stroke-width="1.5" />
+          <circle cx="62" cy="92" r="3.5" fill="currentColor" opacity="0.8" />
+          <circle cx="113" cy="92" r="3.5" fill="currentColor" opacity="0.8" />
         </svg>
       </div>
     </div>
@@ -257,7 +249,7 @@
     <div class="controls-panel">
       <button id="captureBtn" class="capture-btn disabled" disabled>
         <span id="btnIcon">🔒</span>
-        <span id="btnText">KEEP FACE IN OVAL TO UNLOCK</span>
+        <span id="btnText">FIT FACE IN CIRCLE (100% TO UNLOCK)</span>
       </button>
 
       <div id="retakeBar" class="retake-bar">
@@ -283,19 +275,20 @@
     const flash = document.getElementById("flash");
     const analysisCanvas = document.getElementById("analysisCanvas");
     const captureCanvas = document.getElementById("captureCanvas");
-    const aCtx = analysisCanvas.getContext("2d");
 
     let isGreen = false;
+    let isCaptured = false;
+    let analysisInterval = null;
     let consecutiveGood = 0;
     let consecutiveBad = 0;
-    let isCaptured = false;
-    let analysisTimer = null;
-    let hasNativeDetector = ("FaceDetector" in window);
-    let nativeDetector = null;
 
-    if (hasNativeDetector) {
+    // Feature detection for Shape Detection API (FaceDetector)
+    let nativeDetector = null;
+    let hasNativeDetector = false;
+    if ("FaceDetector" in window) {
       try {
         nativeDetector = new window.FaceDetector({ fastMode: true, maxDetectedFaces: 2 });
+        hasNativeDetector = true;
       } catch (e) {
         hasNativeDetector = false;
       }
@@ -350,17 +343,26 @@
       video.srcObject = stream;
       video.onloadedmetadata = () => {
         video.play();
-        startAnalysisLoop();
+        startBiometricAnalysis();
       };
     }).catch(err => {
-      console.warn("Camera blocked:", err);
+      console.error("Camera access error:", err);
+      ovalGuide.className = "oval-guide state-red";
+      btnText.innerText = "CAMERA ACCESS DENIED";
     });
 
-    // Real-Time Alignment and Quality Analysis Loop (Runs at ~10 FPS)
-    function startAnalysisLoop() {
-      if (analysisTimer) clearInterval(analysisTimer);
-      analysisTimer = setInterval(async () => {
-        if (isCaptured || video.videoWidth === 0) return;
+    // Real-Time Biometric Quality & Alignment Engine
+    function startBiometricAnalysis() {
+      const aCtx = analysisCanvas.getContext("2d", { willReadFrequently: true });
+
+      analysisInterval = setInterval(async () => {
+        if (isCaptured || video.paused || video.ended || video.readyState < 2) return;
+
+        // Render current video frame to analysis canvas
+        aCtx.save();
+        aCtx.scale(-1, 1);
+        aCtx.drawImage(video, -analysisCanvas.width, 0, analysisCanvas.width, analysisCanvas.height);
+        aCtx.restore();
 
         let faceDetected = false;
         let isCentered = false;
@@ -368,13 +370,7 @@
         let isSharp = false;
         let isLightingOk = false;
 
-        // Draw downscaled frame to analysis canvas (mirrored to match visual display)
-        aCtx.save();
-        aCtx.scale(-1, 1);
-        aCtx.drawImage(video, -analysisCanvas.width, 0, analysisCanvas.width, analysisCanvas.height);
-        aCtx.restore();
-
-        // 1. If Native FaceDetector API is available in browser
+        // 1. Native FaceDetector API (when available)
         if (hasNativeDetector && nativeDetector) {
           try {
             const faces = await nativeDetector.detect(video);
@@ -389,9 +385,12 @@
               const normW = f.width / vw;
               const normH = f.height / vh;
 
-              // Check if face center is within the central oval region
-              isCentered = (normX >= 0.35 && normX <= 0.65) && (normY >= 0.30 && normY <= 0.70);
-              isGoodSize = (normW >= 0.22 && normW <= 0.62) && (normH >= 0.28 && normH <= 0.75);
+              // Face center should fall within the tighter circle region
+              isCentered = (normX >= 0.38 && normX <= 0.62) && (normY >= 0.32 && normY <= 0.64);
+              // Face dimensions fitting the tighter circle
+              isGoodSize = (normW >= 0.22 && normW <= 0.52) && (normH >= 0.26 && normH <= 0.65);
+            } else {
+              faceDetected = false;
             }
           } catch (e) {}
         }
@@ -402,10 +401,11 @@
         const imgData = aCtx.getImageData(0, 0, w, h);
         const data = imgData.data;
 
+        // Centered ellipse for 240x180 canvas matching the new tighter oval
         const cx = w / 2;
-        const cy = h / 2;
-        const rx = 52;
-        const ry = 68;
+        const cy = Math.round(h * 0.48);
+        const rx = 36;
+        const ry = 49;
 
         let ovalSumLuma = 0;
         let ovalPixels = 0;
@@ -434,7 +434,7 @@
         }
 
         const avgLuma = ovalPixels > 0 ? (ovalSumLuma / ovalPixels) : 0;
-        isLightingOk = (avgLuma >= 45 && avgLuma <= 225);
+        isLightingOk = (avgLuma >= 48 && avgLuma <= 220);
 
         if (diffs.length > 0) {
           const meanDiff = diffs.reduce((a, b) => a + b, 0) / diffs.length;
@@ -443,7 +443,7 @@
         }
 
         if (!hasNativeDetector || !nativeDetector) {
-          isCentered = (avgLuma >= 45 && avgLuma <= 220);
+          isCentered = (avgLuma >= 48 && avgLuma <= 220);
           isGoodSize = true;
           faceDetected = isSharp && isCentered;
         }
@@ -458,10 +458,11 @@
           consecutiveGood = 0;
         }
 
+        // Hysteresis: requires 3 consecutive good frames for green; 2 bad frames triggers red
         if (consecutiveGood >= 3 && !isGreen) {
           setGreenState();
-        } else if (consecutiveBad >= 3 && isGreen) {
-          setYellowState();
+        } else if (consecutiveBad >= 2 && isGreen) {
+          setRedState();
         }
       }, 100);
     }
@@ -475,13 +476,13 @@
       btnText.innerText = "CAPTURE BIOMETRIC PHOTO";
     }
 
-    function setYellowState() {
+    function setRedState() {
       isGreen = false;
-      ovalGuide.className = "oval-guide state-yellow";
+      ovalGuide.className = "oval-guide state-red";
       captureBtn.className = "capture-btn disabled";
       captureBtn.disabled = true;
       btnIcon.innerText = "🔒";
-      btnText.innerText = "KEEP FACE IN OVAL TO UNLOCK";
+      btnText.innerText = "FIT FACE IN CIRCLE (100% TO UNLOCK)";
     }
 
     // Capture Button Action
@@ -527,8 +528,22 @@
       previewCanvas.style.display = "none";
       captureBtn.style.display = "flex";
       retakeBar.style.display = "none";
-      setYellowState();
+      setRedState();
       setComponentValue({ action: "reset", timestamp: Date.now() });
+    });
+
+    // Receive Biometric Purity Evaluation result from Streamlit Python
+    window.addEventListener("message", (event) => {
+      if (event.data && event.data.type === "streamlit:render") {
+        const args = event.data.args || {};
+        if (args.purity_result && isCaptured) {
+          if (args.purity_result.is_pure) {
+            setGreenState();
+          } else {
+            setRedState();
+          }
+        }
+      }
     });
   </script>
 </body>

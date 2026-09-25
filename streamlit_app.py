@@ -17,6 +17,10 @@ sys.path.insert(0, os.path.abspath("."))
 COMPONENT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "live_camera_component")
 live_camera_scanner = components.declare_component("live_camera_scanner", path=COMPONENT_DIR)
 
+# Declare browser-based vertical oval gate enrollment component
+ENROLLMENT_COMPONENT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "enrollment_camera_component")
+enrollment_camera_gate = components.declare_component("enrollment_camera_gate", path=ENROLLMENT_COMPONENT_DIR)
+
 
 def decode_base64_to_cv2(data_url: str):
     """Convert base64 data URL from browser canvas to OpenCV BGR numpy array."""
@@ -685,18 +689,29 @@ elif menu_choice == "👤 Smart Face Enrollment":
         else:
             st.info("ℹ️ No biometric profile enrolled yet. Capture your photo below to activate facial recognition.")
 
-        c1, c2 = st.columns([1, 1])
+        c1, c2 = st.columns([1.1, 0.9])
         with c1:
             target_pose = st.selectbox(
                 "Target Pose to Capture",
                 ["frontal", "left", "right", "smile", "any"],
                 help="Capture varied facial angles to achieve high recognition accuracy."
             )
-            enr_image = st.camera_input("Capture Face Snapshot")
 
-            if enr_image is not None:
-                pil_img = Image.open(enr_image)
-                frame_bgr = pil_to_cv2(pil_img)
+            st.markdown("##### 🏛️ Gate Biometric Viewfinder (Align in Oval)")
+            gate_payload = enrollment_camera_gate(target_pose=target_pose, key=f"gate_oval_{selected_student_id}")
+
+            frame_bgr = None
+            if gate_payload and isinstance(gate_payload, dict) and gate_payload.get("image_data"):
+                frame_bgr = decode_base64_to_cv2(gate_payload["image_data"])
+
+            # Optional fallback standard input
+            with st.expander("📷 Standard Camera Input (Alternative)"):
+                enr_image = st.camera_input("Capture Standard Snapshot", key=f"std_cam_{selected_student_id}")
+                if enr_image is not None and frame_bgr is None:
+                    pil_img = Image.open(enr_image)
+                    frame_bgr = pil_to_cv2(pil_img)
+
+            if frame_bgr is not None:
                 faces = detect_faces(frame_bgr)
 
                 # Pure Biometric Quality Assessment (100% pure standard)
@@ -735,7 +750,7 @@ elif menu_choice == "👤 Smart Face Enrollment":
                     st.write(f"🎯 Target Pose '{target_pose}': " + ("✅ Aligned" if checks.get("pose_match") else "❌ Off-angle") + f" ({metrics.get('yaw_angle', 0)}°)")
 
                 if is_pure:
-                    if st.button("💾 Save 100% Pure Sample"):
+                    if st.button("💾 Save 100% Pure Sample", key="btn_save_pure_sample"):
                         face = faces[0]
                         aligned = align_face(face["face_crop"], face.get("landmarks"))
                         new_vec = generate_face_embedding(aligned)
@@ -762,7 +777,7 @@ elif menu_choice == "👤 Smart Face Enrollment":
                         st.success(f"✅ 100% Pure '{target_pose.upper()}' sample committed to database!")
                         st.rerun()
                 else:
-                    st.button("💾 Save Sample", disabled=True, help="Only samples with 100% pure biometric quality can be saved.")
+                    st.button("💾 Save Sample", disabled=True, key="btn_save_disabled", help="Only samples with 100% pure biometric quality can be saved.")
                     st.caption("ℹ️ Adjust your lighting, step closer, or hold still to achieve a 100% pure score.")
 
         with c2:

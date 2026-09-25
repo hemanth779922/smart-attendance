@@ -1,0 +1,703 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Biometric Gate Enrollment Camera</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body {
+      background: #0f172a;
+      color: #f8fafc;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      padding: 12px;
+      overflow: hidden;
+    }
+
+    .gate-container {
+      position: relative;
+      width: 100%;
+      max-width: 600px;
+      background: #1e293b;
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 12px 30px -5px rgba(0, 0, 0, 0.6), 0 0 0 1px #334155;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    /* Video Viewport */
+    .viewport {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 4 / 3;
+      background: #020617;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transform: scaleX(-1); /* Mirrored view for natural applicant alignment */
+    }
+
+    /* Vignette Mask around Oval */
+    .vignette-mask {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 5;
+    }
+
+    /* The Vertical Biometric Oval Guide */
+    .oval-guide {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 250px;
+      height: 330px;
+      border-radius: 50% / 50%;
+      pointer-events: none;
+      z-index: 10;
+      transition: all 0.25s ease-out;
+    }
+
+    /* State 1: Yellow / Pending / Unaligned */
+    .oval-guide.state-yellow {
+      border: 3.5px dashed #f59e0b;
+      box-shadow: 0 0 25px rgba(245, 158, 11, 0.45), inset 0 0 20px rgba(245, 158, 11, 0.2);
+      animation: pulseYellow 2s infinite ease-in-out;
+    }
+
+    @keyframes pulseYellow {
+      0%, 100% { border-color: #f59e0b; box-shadow: 0 0 18px rgba(245, 158, 11, 0.35); }
+      50% { border-color: #fbbf24; box-shadow: 0 0 30px rgba(251, 191, 36, 0.65); }
+    }
+
+    /* State 2: Green / Perfectly Aligned & Clear */
+    .oval-guide.state-green {
+      border: 4.5px solid #22c55e;
+      box-shadow: 0 0 35px rgba(34, 197, 94, 0.8), inset 0 0 30px rgba(34, 197, 94, 0.35);
+      animation: pulseGreen 1.4s infinite ease-in-out;
+    }
+
+    @keyframes pulseGreen {
+      0%, 100% { border-color: #22c55e; box-shadow: 0 0 25px rgba(34, 197, 94, 0.6); }
+      50% { border-color: #4ade80; box-shadow: 0 0 45px rgba(74, 222, 128, 0.95); }
+    }
+
+    /* Crosshair Center Reference Marks */
+    .oval-crosshair {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      opacity: 0.35;
+      transition: opacity 0.2s;
+    }
+
+    .state-green .oval-crosshair {
+      opacity: 0.65;
+    }
+
+    /* Top HUD Pill Badge */
+    .hud-badge {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      background: rgba(15, 23, 42, 0.88);
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 999px;
+      padding: 6px 14px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.78rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      z-index: 15;
+    }
+
+    .status-dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: #f59e0b;
+      box-shadow: 0 0 8px currentColor;
+    }
+
+    .state-green ~ .hud-badge .status-dot {
+      background: #22c55e;
+    }
+
+    /* Intimation Guidance Toast */
+    .guidance-bar {
+      position: absolute;
+      bottom: 12px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 90%;
+      max-width: 480px;
+      background: rgba(15, 23, 42, 0.92);
+      backdrop-filter: blur(10px);
+      border-radius: 12px;
+      padding: 8px 16px;
+      text-align: center;
+      z-index: 15;
+      border: 1px solid #334155;
+      transition: all 0.2s ease;
+    }
+
+    .guidance-bar.yellow {
+      border-color: rgba(245, 158, 11, 0.6);
+      color: #fbbf24;
+    }
+
+    .guidance-bar.green {
+      border-color: rgba(34, 197, 94, 0.7);
+      background: rgba(6, 78, 59, 0.92);
+      color: #86efac;
+    }
+
+    .guidance-main {
+      font-size: 0.88rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+
+    .guidance-sub {
+      font-size: 0.75rem;
+      opacity: 0.85;
+      margin-top: 2px;
+    }
+
+    /* Controls Panel */
+    .controls-panel {
+      width: 100%;
+      padding: 14px 18px;
+      background: #1e293b;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+    }
+
+    /* Big Action Capture Button */
+    .capture-btn {
+      width: 100%;
+      max-width: 400px;
+      padding: 12px 24px;
+      border-radius: 10px;
+      font-size: 1rem;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      border: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: all 0.25s ease;
+      text-transform: uppercase;
+    }
+
+    /* Disabled when Yellow */
+    .capture-btn.disabled {
+      background: #334155;
+      color: #94a3b8;
+      cursor: not-allowed;
+      opacity: 0.55;
+      box-shadow: none;
+    }
+
+    /* Enabled when Green (Gate Style) */
+    .capture-btn.enabled {
+      background: linear-gradient(135deg, #10b981, #059669);
+      color: #ffffff;
+      cursor: pointer;
+      opacity: 1.0;
+      box-shadow: 0 4px 20px rgba(16, 185, 129, 0.5);
+      animation: pulseBtn 1.5s infinite;
+    }
+
+    .capture-btn.enabled:hover {
+      background: linear-gradient(135deg, #059669, #047857);
+      transform: translateY(-1px);
+      box-shadow: 0 6px 25px rgba(16, 185, 129, 0.7);
+    }
+
+    .capture-btn.enabled:active {
+      transform: translateY(1px);
+    }
+
+    @keyframes pulseBtn {
+      0%, 100% { box-shadow: 0 4px 16px rgba(16, 185, 129, 0.4); }
+      50% { box-shadow: 0 4px 28px rgba(16, 185, 129, 0.85); }
+    }
+
+    /* Retake Bar */
+    .retake-bar {
+      display: none;
+      gap: 12px;
+      width: 100%;
+      max-width: 400px;
+    }
+
+    .retake-btn {
+      flex: 1;
+      padding: 10px 16px;
+      background: #475569;
+      color: #f8fafc;
+      border: none;
+      border-radius: 8px;
+      font-weight: 700;
+      font-size: 0.9rem;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .retake-btn:hover { background: #64748b; }
+
+    /* Flash Effect */
+    .camera-flash {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: #ffffff;
+      opacity: 0;
+      pointer-events: none;
+      z-index: 50;
+      transition: opacity 0.25s ease-out;
+    }
+
+    /* Preview of Captured Frame */
+    .preview-canvas {
+      display: none;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+  </style>
+</head>
+<body>
+  <div class="gate-container">
+    <div class="viewport">
+      <video id="webcam" playsinline autoplay muted></video>
+      <canvas id="previewCanvas" class="preview-canvas"></canvas>
+      <div id="flash" class="camera-flash"></div>
+
+      <!-- Vignette SVG Overlay with Vertical Oval Cutout -->
+      <svg class="vignette-mask" viewBox="0 0 600 450" preserveAspectRatio="none">
+        <defs>
+          <mask id="ovalHoleMask">
+            <!-- White reveals, black cuts out -->
+            <rect width="600" height="450" fill="white" />
+            <ellipse cx="300" cy="225" rx="125" ry="165" fill="black" />
+          </mask>
+        </defs>
+        <!-- Dark semi-transparent surround -->
+        <rect width="600" height="450" fill="rgba(10, 15, 29, 0.72)" mask="url(#ovalHoleMask)" />
+      </svg>
+
+      <!-- The Vertical Oval Viewfinder Guide -->
+      <div id="ovalGuide" class="oval-guide state-yellow">
+        <!-- Crosshair Guides for Chin & Eye alignment -->
+        <svg class="oval-crosshair" viewBox="0 0 250 330">
+          <!-- Eye Line Reference (at ~38% height) -->
+          <line x1="45" y1="125" x2="205" y2="125" stroke="currentColor" stroke-dasharray="4 4" stroke-width="1.5" />
+          <!-- Vertical Symmetry Line -->
+          <line x1="125" y1="40" x2="125" y2="290" stroke="currentColor" stroke-dasharray="4 4" stroke-width="1.5" />
+          <!-- Eye marker points -->
+          <circle cx="95" cy="125" r="4" fill="currentColor" opacity="0.8" />
+          <circle cx="155" cy="125" r="4" fill="currentColor" opacity="0.8" />
+        </svg>
+      </div>
+
+      <!-- Status Top Pill -->
+      <div class="hud-badge">
+        <div id="statusDot" class="status-dot"></div>
+        <span id="hudStatusText">GATE BIOMETRIC VIEW</span>
+      </div>
+
+      <!-- Live Intimation Bar -->
+      <div id="guidanceBar" class="guidance-bar yellow">
+        <div id="guidanceMain" class="guidance-main">
+          <span>⚠️</span>
+          <span id="guidanceText">KEEP YOUR FACE INSIDE THE VERTICAL OVAL</span>
+        </div>
+        <div id="guidanceSub" class="guidance-sub">Hold steady and look directly at the camera</div>
+      </div>
+    </div>
+
+    <!-- Controls Panel -->
+    <div class="controls-panel">
+      <button id="captureBtn" class="capture-btn disabled" disabled>
+        <span id="btnIcon">🔒</span>
+        <span id="btnText">ALIGN FACE IN OVAL TO UNLOCK</span>
+      </button>
+
+      <div id="retakeBar" class="retake-bar">
+        <button id="retakeBtn" class="retake-btn">🔄 Retake Photo</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Offscreen canvas for frame analysis and snapshot capture -->
+  <canvas id="analysisCanvas" width="240" height="180" style="display:none;"></canvas>
+  <canvas id="captureCanvas" style="display:none;"></canvas>
+
+  <script>
+    // Elements
+    const video = document.getElementById("webcam");
+    const previewCanvas = document.getElementById("previewCanvas");
+    const ovalGuide = document.getElementById("ovalGuide");
+    const statusDot = document.getElementById("statusDot");
+    const hudStatusText = document.getElementById("hudStatusText");
+    const guidanceBar = document.getElementById("guidanceBar");
+    const guidanceText = document.getElementById("guidanceText");
+    const guidanceSub = document.getElementById("guidanceSub");
+    const captureBtn = document.getElementById("captureBtn");
+    const btnIcon = document.getElementById("btnIcon");
+    const btnText = document.getElementById("btnText");
+    const retakeBar = document.getElementById("retakeBar");
+    const retakeBtn = document.getElementById("retakeBtn");
+    const flash = document.getElementById("flash");
+    const analysisCanvas = document.getElementById("analysisCanvas");
+    const captureCanvas = document.getElementById("captureCanvas");
+    const aCtx = analysisCanvas.getContext("2d");
+
+    let isGreen = false;
+    let consecutiveGood = 0;
+    let consecutiveBad = 0;
+    let isCaptured = false;
+    let analysisTimer = null;
+    let hasNativeDetector = ("FaceDetector" in window);
+    let nativeDetector = null;
+
+    if (hasNativeDetector) {
+      try {
+        nativeDetector = new window.FaceDetector({ fastMode: true, maxDetectedFaces: 2 });
+      } catch (e) {
+        hasNativeDetector = false;
+      }
+    }
+
+    // Audio Synthetic Shutter Sound
+    function playShutterSound() {
+      try {
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        // High click followed by mechanical thud
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(800, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(120, audioCtx.currentTime + 0.08);
+        gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+        gain.gain.linearRampToValueAtTime(0.01, audioCtx.currentTime + 0.12);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.12);
+      } catch(e) {}
+    }
+
+    // Streamlit Communication
+    function postMessageToParent(type, data) {
+      window.parent.postMessage(Object.assign({
+        isStreamlitMessage: true,
+        type: type
+      }, data), "*");
+    }
+
+    function setComponentValue(value) {
+      postMessageToParent("streamlit:setComponentValue", { value: value });
+    }
+
+    function setFrameHeight(height) {
+      postMessageToParent("streamlit:setFrameHeight", { height: height });
+    }
+
+    postMessageToParent("streamlit:componentReady", { apiVersion: 1 });
+    setFrameHeight(570);
+
+    // Initialize Camera
+    navigator.mediaDevices.getUserMedia({
+      video: {
+        width: { ideal: 1280 },
+        height: { ideal: 960 },
+        facingMode: "user"
+      },
+      audio: false
+    }).then(stream => {
+      video.srcObject = stream;
+      video.onloadedmetadata = () => {
+        video.play();
+        startAnalysisLoop();
+      };
+    }).catch(err => {
+      guidanceBar.className = "guidance-bar yellow";
+      guidanceText.innerText = "CAMERA BLOCKED / PERMISSION DENIED";
+      guidanceSub.innerText = err.message || "Please allow webcam access in browser";
+    });
+
+    // Real-Time Alignment and Quality Analysis Loop (Runs at ~10 FPS)
+    function startAnalysisLoop() {
+      if (analysisTimer) clearInterval(analysisTimer);
+      analysisTimer = setInterval(async () => {
+        if (isCaptured || video.videoWidth === 0) return;
+
+        let faceDetected = false;
+        let isCentered = false;
+        let isGoodSize = false;
+        let isSharp = false;
+        let isLightingOk = false;
+        let feedbackMessage = "KEEP YOUR FACE INSIDE THE VERTICAL OVAL";
+        let subFeedback = "Hold steady and look directly at the camera";
+
+        // Draw downscaled frame to analysis canvas (mirrored to match visual display)
+        aCtx.save();
+        aCtx.scale(-1, 1);
+        aCtx.drawImage(video, -analysisCanvas.width, 0, analysisCanvas.width, analysisCanvas.height);
+        aCtx.restore();
+
+        // 1. If Native FaceDetector API is available in browser
+        if (hasNativeDetector && nativeDetector) {
+          try {
+            const faces = await nativeDetector.detect(video);
+            if (faces && faces.length === 1) {
+              faceDetected = true;
+              const f = faces[0].boundingBox;
+              const vw = video.videoWidth;
+              const vh = video.videoHeight;
+              
+              // Normalize to 0-1
+              const normX = (f.x + f.width / 2) / vw;
+              const normY = (f.y + f.height / 2) / vh;
+              const normW = f.width / vw;
+              const normH = f.height / vh;
+
+              // Check if face center is within the central oval region (0.35 to 0.65)
+              isCentered = (normX >= 0.35 && normX <= 0.65) && (normY >= 0.30 && normY <= 0.70);
+              
+              // Check if face size is appropriate (not too tiny, not overflowing)
+              isGoodSize = (normW >= 0.22 && normW <= 0.62) && (normH >= 0.28 && normH <= 0.75);
+
+              if (!isCentered) {
+                feedbackMessage = "ALIGN YOUR FACE INTO THE CENTER OVAL";
+                subFeedback = normX < 0.35 ? "Shift slightly to your right" : "Shift slightly to your left";
+              } else if (!isGoodSize) {
+                if (normW < 0.22) {
+                  feedbackMessage = "STEP CLOSER TO THE CAMERA";
+                  subFeedback = "Fill the vertical oval with your face";
+                } else {
+                  feedbackMessage = "MOVE BACK SLIGHTLY";
+                  subFeedback = "Position your face comfortably within the boundary";
+                }
+              }
+            } else if (faces && faces.length > 1) {
+              feedbackMessage = "MULTIPLE PEOPLE DETECTED";
+              subFeedback = "Ensure ONLY the applicant is in camera view";
+            }
+          } catch (e) {
+            // Fall back to canvas computer vision analysis below
+          }
+        }
+
+        // 2. High-performance Canvas Computer Vision Quality & Central Alignment Analysis
+        const w = analysisCanvas.width;
+        const h = analysisCanvas.height;
+        const imgData = aCtx.getImageData(0, 0, w, h);
+        const data = imgData.data;
+
+        // Oval region bounds on analysis canvas (center ellipse: rx=50px, ry=66px at center (120, 90))
+        const cx = w / 2;
+        const cy = h / 2;
+        const rx = 52;
+        const ry = 68;
+
+        let ovalSumLuma = 0;
+        let ovalPixels = 0;
+        let laplacianVariance = 0;
+        let prevLuma = null;
+        let diffs = [];
+
+        // Sample oval region
+        for (let y = cy - ry; y <= cy + ry; y += 2) {
+          for (let x = cx - rx; x <= cx + rx; x += 2) {
+            const dx = (x - cx) / rx;
+            const dy = (y - cy) / ry;
+            if (dx * dx + dy * dy <= 1.0) {
+              const idx = (Math.floor(y) * w + Math.floor(x)) * 4;
+              const r = data[idx];
+              const g = data[idx + 1];
+              const b = data[idx + 2];
+              const luma = 0.299 * r + 0.587 * g + 0.114 * b;
+              ovalSumLuma += luma;
+              ovalPixels++;
+
+              if (prevLuma !== null) {
+                diffs.push(Math.abs(luma - prevLuma));
+              }
+              prevLuma = luma;
+            }
+          }
+        }
+
+        const avgLuma = ovalPixels > 0 ? (ovalSumLuma / ovalPixels) : 0;
+        isLightingOk = (avgLuma >= 48 && avgLuma <= 220);
+
+        // Approximate edge sharpness from gradients inside the oval
+        if (diffs.length > 0) {
+          const meanDiff = diffs.reduce((a, b) => a + b, 0) / diffs.length;
+          const varDiff = diffs.reduce((a, b) => a + Math.pow(b - meanDiff, 2), 0) / diffs.length;
+          isSharp = varDiff >= 28.0;
+        }
+
+        if (!isLightingOk) {
+          if (avgLuma < 48) {
+            feedbackMessage = "LIGHTING TOO DIM";
+            subFeedback = "Move to a brighter area or turn on room lighting";
+          } else {
+            feedbackMessage = "TOO BRIGHT / OVEREXPOSED";
+            subFeedback = "Avoid direct glare behind you";
+          }
+        } else if (!isSharp) {
+          feedbackMessage = "IMAGE BLURRED — HOLD STILL";
+          subFeedback = "Hold completely still for crisp biometric clarity";
+        }
+
+        // If native detector wasn't available, rely on canvas contrast & presence
+        if (!hasNativeDetector || !nativeDetector) {
+          // If contrast and sharpness inside oval are strong and lighting is good, consider it aligned
+          isCentered = (avgLuma >= 50 && avgLuma <= 210);
+          isGoodSize = true;
+          faceDetected = isSharp && isCentered;
+        }
+
+        const passesAll = faceDetected && isCentered && isGoodSize && isSharp && isLightingOk;
+
+        // Apply hysteresis filter to prevent rapid toggling
+        if (passesAll) {
+          consecutiveGood++;
+          consecutiveBad = 0;
+        } else {
+          consecutiveBad++;
+          consecutiveGood = 0;
+        }
+
+        // Transition states with hysteresis (3 consecutive positive frames = ~300ms)
+        if (consecutiveGood >= 3 && !isGreen) {
+          setGreenState();
+        } else if (consecutiveBad >= 3 && isGreen) {
+          setYellowState(feedbackMessage, subFeedback);
+        } else if (!isGreen) {
+          // Update yellow sub-text dynamically
+          guidanceText.innerText = feedbackMessage;
+          guidanceSub.innerText = subFeedback;
+        }
+      }, 100);
+    }
+
+    function setGreenState() {
+      isGreen = true;
+      ovalGuide.className = "oval-guide state-green";
+      statusDot.style.background = "#22c55e";
+      hudStatusText.innerText = "FACE ALIGNED & READY";
+      guidanceBar.className = "guidance-bar green";
+      guidanceText.innerText = "PERFECT! FACE IS CLEAR & CENTERED";
+      guidanceSub.innerText = "Click the Capture button below now";
+      captureBtn.className = "capture-btn enabled";
+      captureBtn.disabled = false;
+      btnIcon.innerText = "📸";
+      btnText.innerText = "CAPTURE BIOMETRIC PHOTO";
+    }
+
+    function setYellowState(msg, sub) {
+      isGreen = false;
+      ovalGuide.className = "oval-guide state-yellow";
+      statusDot.style.background = "#f59e0b";
+      hudStatusText.innerText = "ALIGNING BIOMETRIC FACE";
+      guidanceBar.className = "guidance-bar yellow";
+      guidanceText.innerText = msg || "KEEP YOUR FACE INSIDE THE VERTICAL OVAL";
+      guidanceSub.innerText = sub || "Hold steady and look directly at the camera";
+      captureBtn.className = "capture-btn disabled";
+      captureBtn.disabled = true;
+      btnIcon.innerText = "🔒";
+      btnText.innerText = "ALIGN FACE IN OVAL TO UNLOCK";
+    }
+
+    // Capture Button Action
+    captureBtn.addEventListener("click", () => {
+      if (!isGreen || isCaptured) return;
+      isCaptured = true;
+      playShutterSound();
+
+      // Trigger Camera Flash
+      flash.style.opacity = "0.9";
+      setTimeout(() => { flash.style.opacity = "0"; }, 250);
+
+      // Freeze frame onto capture canvas at full resolution
+      captureCanvas.width = video.videoWidth;
+      captureCanvas.height = video.videoHeight;
+      const cCtx = captureCanvas.getContext("2d");
+      
+      // Draw true un-mirrored high-res snapshot
+      cCtx.drawImage(video, 0, 0, captureCanvas.width, captureCanvas.height);
+      const fullQualityDataUrl = captureCanvas.toDataURL("image/jpeg", 0.95);
+
+      // Show preview on screen
+      previewCanvas.width = video.videoWidth;
+      previewCanvas.height = video.videoHeight;
+      const pCtx = previewCanvas.getContext("2d");
+      pCtx.drawImage(video, 0, 0, previewCanvas.width, previewCanvas.height);
+      
+      video.style.display = "none";
+      previewCanvas.style.display = "block";
+      captureBtn.style.display = "none";
+      retakeBar.style.display = "flex";
+
+      guidanceBar.className = "guidance-bar green";
+      guidanceText.innerText = "✅ SNAPSHOT CAPTURED SUCCESSFULLY";
+      guidanceSub.innerText = "Verifying biometric purity with AI engine...";
+
+      // Transmit base64 image payload to Streamlit
+      setComponentValue({
+        action: "captured",
+        image_data: fullQualityDataUrl,
+        timestamp: Date.now()
+      });
+    });
+
+    // Retake Button
+    retakeBtn.addEventListener("click", () => {
+      isCaptured = false;
+      video.style.display = "block";
+      previewCanvas.style.display = "none";
+      captureBtn.style.display = "flex";
+      retakeBar.style.display = "none";
+      setYellowState("KEEP YOUR FACE INSIDE THE VERTICAL OVAL", "Hold steady and look directly at the camera");
+      setComponentValue({ action: "reset", timestamp: Date.now() });
+    });
+  </script>
+</body>
+</html>

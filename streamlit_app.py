@@ -679,7 +679,11 @@ elif menu_choice == "👤 Smart Face Enrollment":
         st.write(f"**Enrollment Status:** {sample_count} of {required_samples} poses captured.")
 
         if sample_count >= required_samples:
-            st.success("🎉 Student face enrollment is COMPLETE and active in vector database!")
+            st.success(f"🎉 Student face enrollment is COMPLETE ({sample_count}/{required_samples} poses) and fully active in vector database!")
+        elif sample_count >= 1:
+            st.success(f"✅ Student is ACTIVE and recognized in vector database ({sample_count} sample captured). You can take attendance now or capture more poses for multi-angle accuracy.")
+        else:
+            st.info("ℹ️ No biometric profile enrolled yet. Capture your photo below to activate facial recognition.")
 
         c1, c2 = st.columns([1, 1])
         with c1:
@@ -925,7 +929,7 @@ elif menu_choice == "👥 Student Directory":
                     "Email": s.email,
                     "Department": s.department,
                     "Year": f"Year {s.year}",
-                    "Biometric Status": f"Enrolled ({emb_count} poses)" if emb_count >= settings.ENROLLMENT_MIN_SAMPLES else f"Pending ({emb_count}/{settings.ENROLLMENT_MIN_SAMPLES})"
+                    "Biometric Status": f"Enrolled ({emb_count} pose{'s' if emb_count > 1 else ''})" if emb_count >= 1 else "Pending Enrollment"
                 })
             st.dataframe(pd.DataFrame(s_data), use_container_width=True)
         else:

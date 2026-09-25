@@ -698,7 +698,12 @@ elif menu_choice == "👤 Smart Face Enrollment":
             )
 
             st.markdown("##### 🏛️ Gate Biometric Viewfinder (Align in Oval)")
-            gate_payload = enrollment_camera_gate(target_pose=target_pose, key=f"gate_oval_{selected_student_id}")
+            purity_feedback = st.session_state.get(f"last_purity_{selected_student_id}")
+            gate_payload = enrollment_camera_gate(
+                target_pose=target_pose,
+                purity_result=purity_feedback,
+                key=f"gate_oval_{selected_student_id}"
+            )
 
             frame_bgr = None
             if gate_payload and isinstance(gate_payload, dict) and gate_payload.get("image_data"):
@@ -722,7 +727,9 @@ elif menu_choice == "👤 Smart Face Enrollment":
                     target_pose=target_pose,
                     strict_liveness=strict_liveness
                 )
+                st.session_state[f"last_purity_{selected_student_id}"] = pure_val
 
+                st.markdown("---")
                 st.markdown("### 🔬 Biometric Purity Diagnostic")
                 p_score = pure_val["purity_score"]
                 is_pure = pure_val["is_pure"]
@@ -750,7 +757,7 @@ elif menu_choice == "👤 Smart Face Enrollment":
                     st.write(f"🎯 Target Pose '{target_pose}': " + ("✅ Aligned" if checks.get("pose_match") else "❌ Off-angle") + f" ({metrics.get('yaw_angle', 0)}°)")
 
                 if is_pure:
-                    if st.button("💾 Save 100% Pure Sample", key="btn_save_pure_sample"):
+                    if st.button("💾 CONFIRM & COMMIT 100% PURE SAMPLE TO DATABASE", type="primary", use_container_width=True, key="btn_save_pure_sample"):
                         face = faces[0]
                         aligned = align_face(face["face_crop"], face.get("landmarks"))
                         new_vec = generate_face_embedding(aligned)

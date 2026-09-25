@@ -342,7 +342,7 @@
       <!-- Live Intimation Bar -->
       <div id="guidanceBar" class="guidance-bar yellow">
         <div id="guidanceMain" class="guidance-main">
-          <span>⚠️</span>
+          <span id="guidanceIcon">⚠️</span>
           <span id="guidanceText">KEEP YOUR FACE INSIDE THE VERTICAL OVAL</span>
         </div>
         <div id="guidanceSub" class="guidance-sub">Hold steady and look directly at the camera</div>
@@ -356,8 +356,9 @@
         <span id="btnText">ALIGN FACE IN OVAL TO UNLOCK</span>
       </button>
 
-      <div id="retakeBar" class="retake-bar">
-        <button id="retakeBtn" class="retake-btn">🔄 Retake Photo</button>
+      <div id="retakeBar" class="retake-bar" style="flex-direction: column; align-items: center; gap: 8px;">
+        <div style="font-size: 0.84rem; color: #38bdf8; font-weight: 700; text-align: center;">👇 Review Biometric Scorecard Below & Save Sample</div>
+        <button id="retakeBtn" class="retake-btn" style="width: 100%;">🔄 Retake Photo</button>
       </div>
     </div>
   </div>
@@ -374,6 +375,7 @@
     const statusDot = document.getElementById("statusDot");
     const hudStatusText = document.getElementById("hudStatusText");
     const guidanceBar = document.getElementById("guidanceBar");
+    const guidanceIcon = document.getElementById("guidanceIcon");
     const guidanceText = document.getElementById("guidanceText");
     const guidanceSub = document.getElementById("guidanceSub");
     const captureBtn = document.getElementById("captureBtn");
@@ -624,6 +626,7 @@
       statusDot.style.background = "#22c55e";
       hudStatusText.innerText = "FACE ALIGNED & READY";
       guidanceBar.className = "guidance-bar green";
+      if (guidanceIcon) guidanceIcon.innerText = "✅";
       guidanceText.innerText = "PERFECT! FACE IS CLEAR & CENTERED";
       guidanceSub.innerText = "Click the Capture button below now";
       captureBtn.className = "capture-btn enabled";
@@ -638,6 +641,7 @@
       statusDot.style.background = "#f59e0b";
       hudStatusText.innerText = "ALIGNING BIOMETRIC FACE";
       guidanceBar.className = "guidance-bar yellow";
+      if (guidanceIcon) guidanceIcon.innerText = "⚠️";
       guidanceText.innerText = msg || "KEEP YOUR FACE INSIDE THE VERTICAL OVAL";
       guidanceSub.innerText = sub || "Hold steady and look directly at the camera";
       captureBtn.className = "capture-btn disabled";
@@ -677,7 +681,8 @@
       retakeBar.style.display = "flex";
 
       guidanceBar.className = "guidance-bar green";
-      guidanceText.innerText = "✅ SNAPSHOT CAPTURED SUCCESSFULLY";
+      if (guidanceIcon) guidanceIcon.innerText = "📸";
+      guidanceText.innerText = "SNAPSHOT CAPTURED SUCCESSFULLY";
       guidanceSub.innerText = "Verifying biometric purity with AI engine...";
 
       // Transmit base64 image payload to Streamlit
@@ -697,6 +702,27 @@
       retakeBar.style.display = "none";
       setYellowState("KEEP YOUR FACE INSIDE THE VERTICAL OVAL", "Hold steady and look directly at the camera");
       setComponentValue({ action: "reset", timestamp: Date.now() });
+    });
+
+    // Receive Purity Evaluation result from Streamlit Python
+    window.addEventListener("message", (event) => {
+      if (event.data && event.data.type === "streamlit:render") {
+        const args = event.data.args || {};
+        if (args.purity_result && isCaptured) {
+          const res = args.purity_result;
+          if (res.is_pure) {
+            guidanceBar.className = "guidance-bar green";
+            if (guidanceIcon) guidanceIcon.innerText = "🌟";
+            guidanceText.innerText = `100% PURE BIOMETRIC QUALITY (${res.purity_score}%)`;
+            guidanceSub.innerText = "Sample verified! Scroll down & click 'Save 100% Pure Sample'.";
+          } else {
+            guidanceBar.className = "guidance-bar yellow";
+            if (guidanceIcon) guidanceIcon.innerText = "❌";
+            guidanceText.innerText = `QUALITY REJECTED (${res.purity_score}%)`;
+            guidanceSub.innerText = (res.actionable_feedback || "Adjust lighting and hold still") + " — Click Retake to try again.";
+          }
+        }
+      }
     });
   </script>
 </body>

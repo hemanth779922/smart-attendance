@@ -48,6 +48,21 @@ def init_db() -> None:
     Base.metadata.create_all(bind=engine)
     logger.info("Database tables verified/created.")
 
+    # Self-healing schema migration for existing databases missing new columns
+    try:
+        with engine.connect() as conn:
+            if settings.DATABASE_URL.startswith("sqlite"):
+                cols = [row[1] for row in conn.execute(text("PRAGMA table_info(face_embeddings);")).fetchall()]
+                if cols and "embedding" not in cols:
+                    conn.execute(text("ALTER TABLE face_embeddings ADD COLUMN embedding TEXT;"))
+                    conn.commit()
+                    logger.info("Auto-migrated SQLite face_embeddings: added 'embedding' column.")
+            elif settings.DATABASE_URL.startswith("postgresql"):
+                conn.execute(text("ALTER TABLE face_embeddings ADD COLUMN IF NOT EXISTS embedding vector(128);"))
+                conn.commit()
+    except Exception as e:
+        logger.debug(f"Schema check migration notice: {e}")
+
     if settings.DATABASE_URL.startswith("postgresql"):
         try:
             with engine.connect() as conn:

@@ -272,7 +272,7 @@ def validate_pure_enrollment_quality(
         size_ok and blur_ok and brightness_ok and contrast_ok and
         symmetry_ok and landmarks_ok and liveness_ok and pose_ok
     )
-    is_pure = all_checks_passed and (purity_score >= 68.0)
+    is_pure = bool(all_checks_passed and (purity_score >= 68.0))
 
     if is_pure:
         grade = "100% PURE BIOMETRIC QUALITY"
@@ -282,32 +282,32 @@ def validate_pure_enrollment_quality(
         feedback = " | ".join(reasons) if reasons else "Quality did not meet 100% pure biometric standard."
 
     return {
-        "is_pure": is_pure,
-        "purity_score": purity_score,
-        "grade": grade,
-        "detected_pose": detected_pose,
-        "target_pose": target_pose_clean,
-        "actionable_feedback": feedback,
-        "reasons": reasons,
+        "is_pure": bool(is_pure),
+        "purity_score": float(purity_score),
+        "grade": str(grade),
+        "detected_pose": str(detected_pose),
+        "target_pose": str(target_pose_clean),
+        "actionable_feedback": str(feedback),
+        "reasons": [str(r) for r in reasons],
         "checks": {
             "single_face": True,
-            "face_size": size_ok,
-            "sharpness": blur_ok,
-            "lighting": brightness_ok,
-            "symmetry": symmetry_ok,
-            "landmarks": landmarks_ok,
-            "liveness": liveness_ok,
-            "pose_match": pose_ok
+            "face_size": bool(size_ok),
+            "sharpness": bool(blur_ok),
+            "lighting": bool(brightness_ok),
+            "symmetry": bool(symmetry_ok),
+            "landmarks": bool(landmarks_ok),
+            "liveness": bool(liveness_ok),
+            "pose_match": bool(pose_ok)
         },
         "metrics": {
             "face_width": int(w),
             "face_height": int(h),
-            "blur_score": round(blur_score, 2),
-            "brightness": round(brightness, 2),
-            "contrast": round(contrast, 2),
-            "lighting_symmetry": round(symmetry, 2),
-            "yaw_angle": round(yaw, 2),
-            "spoof_score": round(spoof_score, 2)
+            "blur_score": round(float(blur_score), 2),
+            "brightness": round(float(brightness), 2),
+            "contrast": round(float(contrast), 2),
+            "lighting_symmetry": round(float(symmetry), 2),
+            "yaw_angle": round(float(yaw), 2),
+            "spoof_score": round(float(spoof_score), 2)
         }
     }
 

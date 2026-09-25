@@ -701,10 +701,16 @@ elif menu_choice == "👤 Smart Face Enrollment":
             last_purity_key = f"last_purity_{selected_student_id}"
             last_eval_ts_key = f"last_eval_ts_{selected_student_id}"
             purity_feedback = st.session_state.get(last_purity_key)
+            purity_clean = None
+            if purity_feedback and isinstance(purity_feedback, dict):
+                purity_clean = {
+                    "is_pure": bool(purity_feedback.get("is_pure", False)),
+                    "purity_score": float(purity_feedback.get("purity_score", 0.0))
+                }
 
             gate_payload = enrollment_camera_gate(
                 target_pose=target_pose,
-                purity_result=purity_feedback,
+                purity_result=purity_clean,
                 key=f"gate_oval_{selected_student_id}"
             )
 

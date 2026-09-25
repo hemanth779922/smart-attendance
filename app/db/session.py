@@ -1,4 +1,4 @@
-﻿import logging
+import logging
 from typing import Generator
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker, Session
@@ -47,6 +47,18 @@ def init_db() -> None:
 
     Base.metadata.create_all(bind=engine)
     logger.info("Database tables verified/created.")
+
+    if settings.DATABASE_URL.startswith("postgresql"):
+        try:
+            with engine.connect() as conn:
+                conn.execute(text(
+                    "CREATE INDEX IF NOT EXISTS idx_face_embeddings_vector "
+                    "ON face_embeddings USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);"
+                ))
+                conn.commit()
+                logger.info("pgvector IVFFlat cosine index verified.")
+        except Exception as e:
+            logger.debug(f"pgvector index creation notice: {e}")
 
     db = SessionLocal()
     try:

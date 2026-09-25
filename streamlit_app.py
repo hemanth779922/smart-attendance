@@ -689,6 +689,23 @@ elif menu_choice == "👤 Smart Face Enrollment":
         else:
             st.info("ℹ️ No biometric profile enrolled yet. Capture your photo below to activate facial recognition.")
 
+        # Phone enrollment helper
+        import socket
+        try:
+            local_ip = socket.gethostbyname(socket.gethostname())
+        except Exception:
+            local_ip = "192.168.1.3"
+
+        with st.expander("📱 Enrolling via Mobile Phone? (Click for Instructions)", expanded=False):
+            st.markdown(f"""
+            **To enroll directly using your smartphone:**
+            1. Connect your phone to the same Wi-Fi network.
+            2. Open your phone's browser (Chrome / Safari) to:
+               👉 **`http://{local_ip}:8501`**
+            3. In the viewfinder below, use the live camera or tap **📱 Snap with Native Phone Camera**.
+            4. When your face is clear in the circle, tap Capture — **it will automatically store in the database**!
+            """)
+
         c1, c2 = st.columns([1.1, 0.9])
         with c1:
             target_pose = st.selectbox(
@@ -789,8 +806,10 @@ elif menu_choice == "👤 Smart Face Enrollment":
                     st.write(f"🛡️ Anti-Spoof Liveness: " + ("✅ Live Human" if checks.get("liveness") else "❌ Spoof/Screen"))
                     st.write(f"🎯 Target Pose '{target_pose}': " + ("✅ Aligned" if checks.get("pose_match") else "❌ Off-angle") + f" ({metrics.get('yaw_angle', 0)}°)")
 
+                # AUTOMATIC STORAGE IN DATABASE
                 if is_pure:
-                    if st.button("💾 CONFIRM & COMMIT 100% PURE SAMPLE TO DATABASE", type="primary", use_container_width=True, key="btn_save_pure_sample"):
+                    save_flag_key = f"auto_committed_{selected_student_id}_{st.session_state.get(last_eval_ts_key, 'default')}"
+                    if not st.session_state.get(save_flag_key):
                         face = faces[0]
                         aligned = align_face(face["face_crop"], face.get("landmarks"))
                         new_vec = generate_face_embedding(aligned)
@@ -801,27 +820,37 @@ elif menu_choice == "👤 Smart Face Enrollment":
                             dup_student = db.query(Student).filter(Student.id == dup_match["student_id"]).first()
                             dup_name = dup_student.name if dup_student else "Another Student"
                             dup_code = dup_student.student_code if dup_student else ""
-                            st.error(f"🚫 Conflict Detected! This face strongly matches enrolled student: {dup_name} ({dup_code}).")
-                            st.stop()
+                            st.error(f"🚫 Conflict Detected! This face strongly matches enrolled student: {dup_name} ({dup_code}). Sample was NOT stored.")
+                            st.session_state[save_flag_key] = "conflict"
+                        else:
+                            # Automatically save embedding to database
+                            new_fe = FaceEmbedding(
+                                student_id=selected_student_id,
+                                pose=pure_val["detected_pose"],
+                                quality_score=pure_val["purity_score"],
+                                is_active=True
+                            )
+                            new_fe.set_embedding(new_vec)
+                            db.add(new_fe)
+                            db.commit()
+                            st.session_state[save_flag_key] = True
+                            st.toast(f"✅ 100% Pure '{target_pose.upper()}' biometric sample automatically saved to database!", icon="💾")
 
-                        # Save embedding with purity score
-                        new_fe = FaceEmbedding(
-                            student_id=selected_student_id,
-                            pose=pure_val["detected_pose"],
-                            quality_score=pure_val["purity_score"],
-                            is_active=True
-                        )
-                        new_fe.set_embedding(new_vec)
-                        db.add(new_fe)
-                        db.commit()
-                        st.success(f"✅ 100% Pure '{target_pose.upper()}' sample committed to database!")
-                        st.rerun()
+                    if st.session_state.get(save_flag_key) is True:
+                        st.success(f"🎉 **AUTOMATICALLY STORED IN DATABASE!** 100% Pure '{target_pose.upper()}' biometric sample committed for {selected_student_str}.")
+                        st.balloons()
+                    elif st.session_state.get(save_flag_key) == "conflict":
+                        st.warning("⚠️ Face was not stored due to duplicate student identity conflict.")
                 else:
-                    st.button("💾 Save Sample", disabled=True, key="btn_save_disabled", help="Only samples with 100% pure biometric quality can be saved.")
-                    st.caption("ℹ️ Adjust your lighting, step closer, or hold still to achieve a 100% pure score.")
+                    st.warning("⚠️ **Sample Not Saved**: Only samples meeting 100% pure biometric standards are stored in the database. Please adjust lighting or alignment and click Retake Photo.")
 
         with c2:
             st.subheader("📋 Enrolled Poses")
+            # Refresh embeddings list from database
+            existing_embeddings = db.query(FaceEmbedding).filter(
+                FaceEmbedding.student_id == selected_student_id,
+                FaceEmbedding.is_active == True
+            ).all()
             if existing_embeddings:
                 poses_data = [{"Sample #": i+1, "Pose": fe.pose, "Quality Score": round(fe.quality_score, 1)} for i, fe in enumerate(existing_embeddings)]
                 st.dataframe(pd.DataFrame(poses_data), use_container_width=True)
@@ -829,7 +858,7 @@ elif menu_choice == "👤 Smart Face Enrollment":
                 if st.button("🗑️ Reset All Embeddings for this Student"):
                     db.query(FaceEmbedding).filter(FaceEmbedding.student_id == selected_student_id).delete()
                     db.commit()
-                    st.warning("Biometric embeddings reset.")
+                    st.success("All biometric embeddings reset!")
                     st.rerun()
             else:
                 st.info("No face embeddings stored yet for this student.")

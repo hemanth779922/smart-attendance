@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Biometric Gate Enrollment Camera</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
@@ -13,14 +13,15 @@
       flex-direction: column;
       align-items: center;
       justify-content: flex-start;
-      padding: 10px;
-      overflow: hidden;
+      padding: 6px;
+      overflow-x: hidden;
+      touch-action: manipulation;
     }
 
     .gate-container {
       position: relative;
       width: 100%;
-      max-width: 600px;
+      max-width: 500px;
       background: #1e293b;
       border-radius: 16px;
       overflow: hidden;
@@ -30,16 +31,24 @@
       align-items: center;
     }
 
-    /* Video Viewport */
+    /* Video / Camera Viewport */
     .viewport {
       position: relative;
       width: 100%;
       aspect-ratio: 4 / 3;
+      max-height: 420px;
       background: #020617;
       overflow: hidden;
       display: flex;
       align-items: center;
       justify-content: center;
+    }
+
+    @media (max-width: 500px) {
+      .viewport {
+        aspect-ratio: 3 / 4;
+        max-height: 380px;
+      }
     }
 
     video {
@@ -72,6 +81,13 @@
       pointer-events: none;
       z-index: 10;
       transition: all 0.25s ease-out;
+    }
+
+    @media (max-width: 420px) {
+      .oval-guide {
+        width: 155px;
+        height: 220px;
+      }
     }
 
     /* State 1: Red / Pending / Unaligned / Below 100% */
@@ -120,32 +136,88 @@
       opacity: 0.75;
     }
 
+    /* Mobile Fallback Card (shown when getUserMedia is not allowed on insecure mobile HTTP) */
+    .mobile-fallback {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 30px 20px;
+      gap: 14px;
+      background: #0f172a;
+      width: 100%;
+      height: 100%;
+      z-index: 20;
+    }
+
+    .mobile-fallback .mobile-icon {
+      font-size: 3rem;
+    }
+
+    .mobile-fallback .mobile-title {
+      font-size: 1.15rem;
+      font-weight: 800;
+      color: #f1f5f9;
+    }
+
+    .mobile-fallback .mobile-subtitle {
+      font-size: 0.88rem;
+      color: #94a3b8;
+      max-width: 320px;
+      line-height: 1.4;
+    }
+
+    .phone-cam-btn {
+      padding: 14px 26px;
+      background: linear-gradient(135deg, #2563eb 0%, #3b82f6 100%);
+      color: #ffffff;
+      border: none;
+      border-radius: 12px;
+      font-size: 1rem;
+      font-weight: 800;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      box-shadow: 0 4px 15px rgba(37, 99, 235, 0.4);
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+    }
+
+    .phone-cam-btn:active {
+      transform: scale(0.98);
+    }
+
     /* Controls Panel below Viewport */
     .controls-panel {
       width: 100%;
-      padding: 12px 18px;
+      padding: 12px 16px;
       background: #1e293b;
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 8px;
+      gap: 10px;
     }
 
     /* Big Action Capture Button */
     .capture-btn {
       width: 100%;
-      max-width: 420px;
-      padding: 13px 24px;
-      border-radius: 10px;
+      max-width: 440px;
+      min-height: 50px;
+      padding: 13px 20px;
+      border-radius: 12px;
       font-size: 1rem;
       font-weight: 800;
-      letter-spacing: 0.04em;
+      letter-spacing: 0.03em;
       border: none;
       display: flex;
       align-items: center;
       justify-content: center;
       gap: 10px;
       cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
       transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
     }
 
@@ -170,27 +242,53 @@
       50% { transform: scale(1.02); box-shadow: 0 6px 22px rgba(34, 197, 94, 0.7); }
     }
 
+    /* Native Phone Camera Option Button */
+    .mobile-alt-btn {
+      background: transparent;
+      border: 1px solid #475569;
+      color: #94a3b8;
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .mobile-alt-btn:hover, .mobile-alt-btn:active {
+      background: #334155;
+      color: #f1f5f9;
+      border-color: #64748b;
+    }
+
     /* Retake Button Bar */
     .retake-bar {
       display: none;
       width: 100%;
-      max-width: 420px;
+      max-width: 440px;
     }
 
     .retake-btn {
       width: 100%;
+      min-height: 48px;
       padding: 12px 18px;
       background: #475569;
       color: #f8fafc;
       border: none;
-      border-radius: 10px;
+      border-radius: 12px;
       font-weight: 700;
       font-size: 0.95rem;
       cursor: pointer;
       transition: background 0.2s;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
     }
 
-    .retake-btn:hover { background: #64748b; }
+    .retake-btn:active { background: #64748b; }
 
     /* Flash Effect */
     .camera-flash {
@@ -222,6 +320,14 @@
       <canvas id="previewCanvas" class="preview-canvas"></canvas>
       <div id="flash" class="camera-flash"></div>
 
+      <!-- Mobile Insecure Fallback (for mobile browser on HTTP) -->
+      <div id="mobileFallback" class="mobile-fallback">
+        <div class="mobile-icon">📱</div>
+        <div class="mobile-title">Phone Selfie Camera</div>
+        <div class="mobile-subtitle">Tap below to open your phone's camera and snap your 100% pure biometric photo.</div>
+        <button id="phoneFallbackBtn" class="phone-cam-btn">🤳 Open Camera & Snap</button>
+      </div>
+
       <!-- Vignette SVG Overlay with Vertical Oval Cutout -->
       <svg class="vignette-mask" viewBox="0 0 600 450" preserveAspectRatio="none">
         <defs>
@@ -252,11 +358,17 @@
         <span id="btnText">FIT FACE IN CIRCLE (100% TO UNLOCK)</span>
       </button>
 
+      <!-- Direct Phone Camera input link -->
+      <button id="mobileAltBtn" class="mobile-alt-btn">📱 Snap with Native Phone Camera</button>
+
       <div id="retakeBar" class="retake-bar">
         <button id="retakeBtn" class="retake-btn">🔄 Retake Photo</button>
       </div>
     </div>
   </div>
+
+  <!-- Native Phone Camera file input (triggers native camera app on Android/iOS) -->
+  <input type="file" id="phoneCameraInput" accept="image/*" capture="user" style="display:none;">
 
   <!-- Offscreen canvas for frame analysis and snapshot capture -->
   <canvas id="analysisCanvas" width="240" height="180" style="display:none;"></canvas>
@@ -273,6 +385,10 @@
     const retakeBar = document.getElementById("retakeBar");
     const retakeBtn = document.getElementById("retakeBtn");
     const flash = document.getElementById("flash");
+    const mobileFallback = document.getElementById("mobileFallback");
+    const phoneFallbackBtn = document.getElementById("phoneFallbackBtn");
+    const mobileAltBtn = document.getElementById("mobileAltBtn");
+    const phoneCameraInput = document.getElementById("phoneCameraInput");
     const analysisCanvas = document.getElementById("analysisCanvas");
     const captureCanvas = document.getElementById("captureCanvas");
 
@@ -294,9 +410,12 @@
       }
     }
 
-    // Audio Synthetic Shutter Sound
+    // Audio & Haptic Feedback
     function playShutterSound() {
       try {
+        if ("vibrate" in navigator) {
+          navigator.vibrate(60);
+        }
         const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         const osc = audioCtx.createOscillator();
         const gain = audioCtx.createGain();
@@ -329,29 +448,88 @@
     }
 
     postMessageToParent("streamlit:componentReady", { apiVersion: 1 });
-    setFrameHeight(510);
+    setFrameHeight(520);
 
-    // Initialize Camera
-    navigator.mediaDevices.getUserMedia({
-      video: {
-        width: { ideal: 1280 },
-        height: { ideal: 960 },
-        facingMode: "user"
-      },
-      audio: false
-    }).then(stream => {
-      video.srcObject = stream;
-      video.onloadedmetadata = () => {
-        video.play();
-        startBiometricAnalysis();
+    // Show mobile phone capture fallback (e.g. on HTTP in mobile browsers)
+    function activateMobileFallback() {
+      mobileFallback.style.display = "flex";
+      video.style.display = "none";
+      captureBtn.style.display = "none";
+      mobileAltBtn.style.display = "none";
+    }
+
+    // Initialize Camera (Phone / Desktop auto-detection)
+    const hasMedia = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+    const isMobileDevice = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+    if (hasMedia) {
+      const constraints = {
+        video: {
+          facingMode: "user",
+          width: { ideal: isMobileDevice ? 720 : 1280 },
+          height: { ideal: isMobileDevice ? 1280 : 960 }
+        },
+        audio: false
       };
-    }).catch(err => {
-      console.error("Camera access error:", err);
-      ovalGuide.className = "oval-guide state-red";
-      btnText.innerText = "CAMERA ACCESS DENIED";
+
+      navigator.mediaDevices.getUserMedia(constraints)
+        .then(stream => {
+          video.srcObject = stream;
+          video.onloadedmetadata = () => {
+            video.play();
+            startBiometricAnalysis();
+          };
+        })
+        .catch(err => {
+          console.warn("getUserMedia failed, activating phone camera capture:", err);
+          activateMobileFallback();
+        });
+    } else {
+      console.warn("navigator.mediaDevices not available on this origin, activating phone camera capture.");
+      activateMobileFallback();
+    }
+
+    // Native Phone Camera Handlers
+    phoneFallbackBtn.addEventListener("click", () => phoneCameraInput.click());
+    mobileAltBtn.addEventListener("click", () => phoneCameraInput.click());
+
+    phoneCameraInput.addEventListener("change", (e) => {
+      const file = e.target.files && e.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+        const img = new Image();
+        img.onload = () => {
+          playShutterSound();
+          isCaptured = true;
+
+          // Render into previewCanvas
+          previewCanvas.width = img.width;
+          previewCanvas.height = img.height;
+          const pCtx = previewCanvas.getContext("2d");
+          pCtx.drawImage(img, 0, 0);
+
+          video.style.display = "none";
+          mobileFallback.style.display = "none";
+          previewCanvas.style.display = "block";
+          captureBtn.style.display = "none";
+          mobileAltBtn.style.display = "none";
+          retakeBar.style.display = "block";
+
+          // Send captured photo to Streamlit for auto-storage
+          setComponentValue({
+            action: "captured",
+            image_data: evt.target.result,
+            timestamp: Date.now()
+          });
+        };
+        img.src = evt.target.result;
+      };
+      reader.readAsDataURL(file);
     });
 
-    // Real-Time Biometric Quality & Alignment Engine
+    // Real-Time Biometric Quality & Alignment Engine (Live Feed)
     function startBiometricAnalysis() {
       const aCtx = analysisCanvas.getContext("2d", { willReadFrequently: true });
 
@@ -401,7 +579,7 @@
         const imgData = aCtx.getImageData(0, 0, w, h);
         const data = imgData.data;
 
-        // Centered ellipse for 240x180 canvas matching the new tighter oval
+        // Centered ellipse for 240x180 canvas matching the tighter oval
         const cx = w / 2;
         const cy = Math.round(h * 0.48);
         const rx = 36;
@@ -511,6 +689,7 @@
       video.style.display = "none";
       previewCanvas.style.display = "block";
       captureBtn.style.display = "none";
+      mobileAltBtn.style.display = "none";
       retakeBar.style.display = "block";
 
       // Transmit base64 image payload to Streamlit
@@ -524,10 +703,16 @@
     // Retake Button
     retakeBtn.addEventListener("click", () => {
       isCaptured = false;
-      video.style.display = "block";
+      if (hasMedia && !mobileFallback.style.display.includes("flex")) {
+        video.style.display = "block";
+        captureBtn.style.display = "flex";
+        mobileAltBtn.style.display = "inline-flex";
+      } else {
+        mobileFallback.style.display = "flex";
+      }
       previewCanvas.style.display = "none";
-      captureBtn.style.display = "flex";
       retakeBar.style.display = "none";
+      phoneCameraInput.value = "";
       setRedState();
       setComponentValue({ action: "reset", timestamp: Date.now() });
     });

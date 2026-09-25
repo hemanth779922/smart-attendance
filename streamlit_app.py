@@ -757,12 +757,7 @@ elif menu_choice == "👤 Smart Face Enrollment":
                     else:
                         frame_bgr = decode_base64_to_cv2(gate_payload["image_data"])
 
-            # Optional fallback standard input
-            with st.expander("📷 Standard Camera Input (Alternative)"):
-                enr_image = st.camera_input("Capture Standard Snapshot", key=f"std_cam_{selected_student_id}")
-                if enr_image is not None and frame_bgr is None:
-                    pil_img = Image.open(enr_image)
-                    frame_bgr = pil_to_cv2(pil_img)
+
 
             if frame_bgr is not None:
                 faces = detect_faces(frame_bgr)

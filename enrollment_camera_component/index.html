@@ -31,12 +31,12 @@
       align-items: center;
     }
 
-    /* Video / Camera Viewport */
+    /* Live Web Camera Viewport */
     .viewport {
       position: relative;
       width: 100%;
       aspect-ratio: 4 / 3;
-      max-height: 420px;
+      max-height: 440px;
       background: #020617;
       overflow: hidden;
       display: flex;
@@ -47,7 +47,7 @@
     @media (max-width: 500px) {
       .viewport {
         aspect-ratio: 3 / 4;
-        max-height: 380px;
+        max-height: 420px;
       }
     }
 
@@ -90,7 +90,7 @@
       }
     }
 
-    /* State 1: Red / Pending / Unaligned / Below 100% */
+    /* State 1: Red / Pending / Face not aligned in circle / Below 100% */
     .oval-guide.state-red {
       border: 3.5px dashed #ef4444;
       box-shadow: 0 0 25px rgba(239, 68, 68, 0.6), inset 0 0 18px rgba(239, 68, 68, 0.25);
@@ -102,7 +102,7 @@
       50% { border-color: #f87171; box-shadow: 0 0 32px rgba(248, 113, 113, 0.85); }
     }
 
-    /* State 2: Green / 100% Pure & Clear */
+    /* State 2: Green / Face aligned in circle & 100% Pure Clarity */
     .oval-guide.state-green {
       border: 4.5px solid #22c55e;
       box-shadow: 0 0 35px rgba(34, 197, 94, 0.85), inset 0 0 25px rgba(34, 197, 94, 0.35);
@@ -114,7 +114,7 @@
       50% { border-color: #4ade80; box-shadow: 0 0 45px rgba(74, 222, 128, 0.95); }
     }
 
-    /* Crosshair Center Reference Marks */
+    /* Crosshair Center Reference Marks inside the Circle */
     .oval-crosshair {
       position: absolute;
       top: 50%;
@@ -136,60 +136,7 @@
       opacity: 0.75;
     }
 
-    /* Mobile Fallback Card (shown when getUserMedia is not allowed on insecure mobile HTTP) */
-    .mobile-fallback {
-      display: none;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      text-align: center;
-      padding: 30px 20px;
-      gap: 14px;
-      background: #0f172a;
-      width: 100%;
-      height: 100%;
-      z-index: 20;
-    }
-
-    .mobile-fallback .mobile-icon {
-      font-size: 3rem;
-    }
-
-    .mobile-fallback .mobile-title {
-      font-size: 1.15rem;
-      font-weight: 800;
-      color: #f1f5f9;
-    }
-
-    .mobile-fallback .mobile-subtitle {
-      font-size: 0.88rem;
-      color: #94a3b8;
-      max-width: 320px;
-      line-height: 1.4;
-    }
-
-    .phone-cam-btn {
-      padding: 14px 26px;
-      background: linear-gradient(135deg, #2563eb 0%, #3b82f6 100%);
-      color: #ffffff;
-      border: none;
-      border-radius: 12px;
-      font-size: 1rem;
-      font-weight: 800;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      box-shadow: 0 4px 15px rgba(37, 99, 235, 0.4);
-      -webkit-tap-highlight-color: transparent;
-      touch-action: manipulation;
-    }
-
-    .phone-cam-btn:active {
-      transform: scale(0.98);
-    }
-
-    /* Controls Panel below Viewport */
+    /* Web Controls Panel directly below Viewport */
     .controls-panel {
       width: 100%;
       padding: 12px 16px;
@@ -200,12 +147,12 @@
       gap: 10px;
     }
 
-    /* Big Action Capture Button */
+    /* Web Capture Button */
     .capture-btn {
       width: 100%;
       max-width: 440px;
-      min-height: 50px;
-      padding: 13px 20px;
+      min-height: 52px;
+      padding: 14px 20px;
       border-radius: 12px;
       font-size: 1rem;
       font-weight: 800;
@@ -233,36 +180,13 @@
       background: linear-gradient(135deg, #16a34a 0%, #22c55e 100%);
       color: #ffffff;
       cursor: pointer;
-      box-shadow: 0 4px 15px rgba(34, 197, 94, 0.4);
+      box-shadow: 0 4px 16px rgba(34, 197, 94, 0.45);
       animation: buttonReadyPulse 1.8s infinite;
     }
 
     @keyframes buttonReadyPulse {
-      0%, 100% { transform: scale(1); box-shadow: 0 4px 15px rgba(34, 197, 94, 0.4); }
-      50% { transform: scale(1.02); box-shadow: 0 6px 22px rgba(34, 197, 94, 0.7); }
-    }
-
-    /* Native Phone Camera Option Button */
-    .mobile-alt-btn {
-      background: transparent;
-      border: 1px solid #475569;
-      color: #94a3b8;
-      padding: 8px 16px;
-      border-radius: 8px;
-      font-size: 0.85rem;
-      font-weight: 600;
-      cursor: pointer;
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      transition: all 0.2s;
-      -webkit-tap-highlight-color: transparent;
-    }
-
-    .mobile-alt-btn:hover, .mobile-alt-btn:active {
-      background: #334155;
-      color: #f1f5f9;
-      border-color: #64748b;
+      0%, 100% { transform: scale(1); box-shadow: 0 4px 16px rgba(34, 197, 94, 0.45); }
+      50% { transform: scale(1.02); box-shadow: 0 6px 24px rgba(34, 197, 94, 0.75); }
     }
 
     /* Retake Button Bar */
@@ -304,7 +228,7 @@
       transition: opacity 0.25s ease-out;
     }
 
-    /* Preview of Captured Frame */
+    /* Preview of Captured Frame inside the Circle */
     .preview-canvas {
       display: none;
       width: 100%;
@@ -316,17 +240,10 @@
 <body>
   <div class="gate-container">
     <div class="viewport">
-      <video id="webcam" playsinline autoplay muted></video>
+      <!-- Live Web Camera Feed (captured directly on the web, no native camera app) -->
+      <video id="webcam" playsinline webkit-playsinline autoplay muted></video>
       <canvas id="previewCanvas" class="preview-canvas"></canvas>
       <div id="flash" class="camera-flash"></div>
-
-      <!-- Mobile Insecure Fallback (for mobile browser on HTTP) -->
-      <div id="mobileFallback" class="mobile-fallback">
-        <div class="mobile-icon">📱</div>
-        <div class="mobile-title">Phone Selfie Camera</div>
-        <div class="mobile-subtitle">Tap below to open your phone's camera and snap your 100% pure biometric photo.</div>
-        <button id="phoneFallbackBtn" class="phone-cam-btn">🤳 Open Camera & Snap</button>
-      </div>
 
       <!-- Vignette SVG Overlay with Vertical Oval Cutout -->
       <svg class="vignette-mask" viewBox="0 0 600 450" preserveAspectRatio="none">
@@ -339,9 +256,9 @@
         <rect width="600" height="450" fill="rgba(10, 15, 29, 0.72)" mask="url(#ovalHoleMask)" />
       </svg>
 
-      <!-- The Vertical Oval Viewfinder Guide -->
+      <!-- The Vertical Circle/Oval Guide: Applicant MUST align face strictly inside this circle -->
       <div id="ovalGuide" class="oval-guide state-red">
-        <!-- Crosshair Guides for Chin & Eye alignment -->
+        <!-- Crosshair Reference Marks inside the Circle -->
         <svg class="oval-crosshair" viewBox="0 0 175 245">
           <line x1="25" y1="92" x2="150" y2="92" stroke="currentColor" stroke-dasharray="3 3" stroke-width="1.5" />
           <line x1="87.5" y1="20" x2="87.5" y2="225" stroke="currentColor" stroke-dasharray="3 3" stroke-width="1.5" />
@@ -351,24 +268,18 @@
       </div>
     </div>
 
-    <!-- Controls Panel (Outside the video frame) -->
+    <!-- Web Controls Panel (Outside the video frame) -->
     <div class="controls-panel">
       <button id="captureBtn" class="capture-btn disabled" disabled>
         <span id="btnIcon">🔒</span>
         <span id="btnText">FIT FACE IN CIRCLE (100% TO UNLOCK)</span>
       </button>
 
-      <!-- Direct Phone Camera input link -->
-      <button id="mobileAltBtn" class="mobile-alt-btn">📱 Snap with Native Phone Camera</button>
-
       <div id="retakeBar" class="retake-bar">
         <button id="retakeBtn" class="retake-btn">🔄 Retake Photo</button>
       </div>
     </div>
   </div>
-
-  <!-- Native Phone Camera file input (triggers native camera app on Android/iOS) -->
-  <input type="file" id="phoneCameraInput" accept="image/*" capture="user" style="display:none;">
 
   <!-- Offscreen canvas for frame analysis and snapshot capture -->
   <canvas id="analysisCanvas" width="240" height="180" style="display:none;"></canvas>
@@ -385,10 +296,6 @@
     const retakeBar = document.getElementById("retakeBar");
     const retakeBtn = document.getElementById("retakeBtn");
     const flash = document.getElementById("flash");
-    const mobileFallback = document.getElementById("mobileFallback");
-    const phoneFallbackBtn = document.getElementById("phoneFallbackBtn");
-    const mobileAltBtn = document.getElementById("mobileAltBtn");
-    const phoneCameraInput = document.getElementById("phoneCameraInput");
     const analysisCanvas = document.getElementById("analysisCanvas");
     const captureCanvas = document.getElementById("captureCanvas");
 
@@ -410,7 +317,7 @@
       }
     }
 
-    // Audio & Haptic Feedback
+    // Audio Synthetic Shutter Sound & Haptic Vibration
     function playShutterSound() {
       try {
         if ("vibrate" in navigator) {
@@ -448,26 +355,22 @@
     }
 
     postMessageToParent("streamlit:componentReady", { apiVersion: 1 });
-    setFrameHeight(520);
+    setFrameHeight(510);
 
-    // Show mobile phone capture fallback (e.g. on HTTP in mobile browsers)
-    function activateMobileFallback() {
-      mobileFallback.style.display = "flex";
-      video.style.display = "none";
-      captureBtn.style.display = "none";
-      mobileAltBtn.style.display = "none";
-    }
+    // Initialize Web Camera (Directly in Web, using front camera)
+    function initWebCamera() {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        console.error("Camera API not supported or insecure origin.");
+        btnText.innerText = "CAMERA NOT ALLOWED ON THIS ORIGIN";
+        return;
+      }
 
-    // Initialize Camera (Phone / Desktop auto-detection)
-    const hasMedia = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
-    const isMobileDevice = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-
-    if (hasMedia) {
+      const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
       const constraints = {
         video: {
-          facingMode: "user",
-          width: { ideal: isMobileDevice ? 720 : 1280 },
-          height: { ideal: isMobileDevice ? 1280 : 960 }
+          facingMode: { ideal: "user" },
+          width: { ideal: isMobile ? 720 : 1280 },
+          height: { ideal: isMobile ? 960 : 720 }
         },
         audio: false
       };
@@ -481,55 +384,15 @@
           };
         })
         .catch(err => {
-          console.warn("getUserMedia failed, activating phone camera capture:", err);
-          activateMobileFallback();
+          console.error("Webcam access error:", err);
+          ovalGuide.className = "oval-guide state-red";
+          btnText.innerText = "CAMERA ACCESS DENIED IN BROWSER";
         });
-    } else {
-      console.warn("navigator.mediaDevices not available on this origin, activating phone camera capture.");
-      activateMobileFallback();
     }
 
-    // Native Phone Camera Handlers
-    phoneFallbackBtn.addEventListener("click", () => phoneCameraInput.click());
-    mobileAltBtn.addEventListener("click", () => phoneCameraInput.click());
+    initWebCamera();
 
-    phoneCameraInput.addEventListener("change", (e) => {
-      const file = e.target.files && e.target.files[0];
-      if (!file) return;
-
-      const reader = new FileReader();
-      reader.onload = (evt) => {
-        const img = new Image();
-        img.onload = () => {
-          playShutterSound();
-          isCaptured = true;
-
-          // Render into previewCanvas
-          previewCanvas.width = img.width;
-          previewCanvas.height = img.height;
-          const pCtx = previewCanvas.getContext("2d");
-          pCtx.drawImage(img, 0, 0);
-
-          video.style.display = "none";
-          mobileFallback.style.display = "none";
-          previewCanvas.style.display = "block";
-          captureBtn.style.display = "none";
-          mobileAltBtn.style.display = "none";
-          retakeBar.style.display = "block";
-
-          // Send captured photo to Streamlit for auto-storage
-          setComponentValue({
-            action: "captured",
-            image_data: evt.target.result,
-            timestamp: Date.now()
-          });
-        };
-        img.src = evt.target.result;
-      };
-      reader.readAsDataURL(file);
-    });
-
-    // Real-Time Biometric Quality & Alignment Engine (Live Feed)
+    // Real-Time Biometric Quality & Alignment Engine (Strictly checks face inside the circle)
     function startBiometricAnalysis() {
       const aCtx = analysisCanvas.getContext("2d", { willReadFrequently: true });
 
@@ -563,9 +426,9 @@
               const normW = f.width / vw;
               const normH = f.height / vh;
 
-              // Face center should fall within the tighter circle region
+              // Face center strictly inside the circle guide region
               isCentered = (normX >= 0.38 && normX <= 0.62) && (normY >= 0.32 && normY <= 0.64);
-              // Face dimensions fitting the tighter circle
+              // Face dimensions fitting the circle
               isGoodSize = (normW >= 0.22 && normW <= 0.52) && (normH >= 0.26 && normH <= 0.65);
             } else {
               faceDetected = false;
@@ -579,7 +442,7 @@
         const imgData = aCtx.getImageData(0, 0, w, h);
         const data = imgData.data;
 
-        // Centered ellipse for 240x180 canvas matching the tighter oval
+        // Centered ellipse for 240x180 canvas matching the tighter circle
         const cx = w / 2;
         const cy = Math.round(h * 0.48);
         const rx = 36;
@@ -663,7 +526,7 @@
       btnText.innerText = "FIT FACE IN CIRCLE (100% TO UNLOCK)";
     }
 
-    // Capture Button Action
+    // Capture Button Action (Web-Only Snapshot)
     captureBtn.addEventListener("click", () => {
       if (!isGreen || isCaptured) return;
       isCaptured = true;
@@ -689,10 +552,9 @@
       video.style.display = "none";
       previewCanvas.style.display = "block";
       captureBtn.style.display = "none";
-      mobileAltBtn.style.display = "none";
       retakeBar.style.display = "block";
 
-      // Transmit base64 image payload to Streamlit
+      // Transmit base64 image payload to Streamlit for auto-storage
       setComponentValue({
         action: "captured",
         image_data: fullQualityDataUrl,
@@ -703,16 +565,10 @@
     // Retake Button
     retakeBtn.addEventListener("click", () => {
       isCaptured = false;
-      if (hasMedia && !mobileFallback.style.display.includes("flex")) {
-        video.style.display = "block";
-        captureBtn.style.display = "flex";
-        mobileAltBtn.style.display = "inline-flex";
-      } else {
-        mobileFallback.style.display = "flex";
-      }
+      video.style.display = "block";
       previewCanvas.style.display = "none";
+      captureBtn.style.display = "flex";
       retakeBar.style.display = "none";
-      phoneCameraInput.value = "";
       setRedState();
       setComponentValue({ action: "reset", timestamp: Date.now() });
     });

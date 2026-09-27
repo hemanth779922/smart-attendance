@@ -1,4 +1,4 @@
-﻿import base64
+import base64
 import cv2
 import numpy as np
 from fastapi.testclient import TestClient
@@ -47,3 +47,39 @@ def test_enrollment_sample_and_status(client: TestClient, admin_token: str, db_s
     assert "quality_score" in data
     assert "status" in data
     assert "samples_collected" in data
+
+
+def test_enroll_web_portal_html(client: TestClient):
+    """Test that the dedicated enrollment web portal HTML is served on /enroll."""
+    resp = client.get("/enroll")
+    assert resp.status_code == 200
+    assert "Smart Attendance" in resp.text
+    assert "Registration Number" in resp.text
+    assert "ovalGuide" in resp.text
+
+
+def test_web_enrollment_submit_and_recent_feed(client: TestClient, db_session: Session):
+    """Test submitting photo with registration number from web portal and retrieving from feed."""
+    b64_face = make_test_face_base64()
+    submit_resp = client.post("/api/v1/enrollment/web-submit", json={
+        "student_code": "TEST_REG_99",
+        "target_pose": "frontal",
+        "image_base64": b64_face
+    })
+    assert submit_resp.status_code == 200
+    data = submit_resp.json()
+    assert data["student_code"] == "TEST_REG_99"
+    assert "is_pure" in data
+    assert "purity_score" in data
+    assert data["photo_path"] is not None
+
+    # Check recent submissions feed
+    feed_resp = client.get("/api/v1/enrollment/recent-submissions")
+    assert feed_resp.status_code == 200
+    feed = feed_resp.json()
+    assert any(s["student_code"] == "TEST_REG_99" for s in feed)
+
+    # Check students-list endpoint
+    list_resp = client.get("/api/v1/enrollment/students-list")
+    assert list_resp.status_code == 200
+    assert any(s["student_code"] == "TEST_REG_99" for s in list_resp.json())

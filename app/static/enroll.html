@@ -1,0 +1,748 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Smart Attendance - Student Face Capture Portal</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body {
+      background: #090d16;
+      color: #f8fafc;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      padding: 14px 10px;
+      touch-action: manipulation;
+    }
+
+    .portal-card {
+      width: 100%;
+      max-width: 480px;
+      background: #131b2e;
+      border: 1px solid #1e293b;
+      border-radius: 20px;
+      box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.7);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    /* Header */
+    .portal-header {
+      width: 100%;
+      padding: 18px 20px 14px;
+      text-align: center;
+      background: linear-gradient(180deg, #1e293b 0%, #131b2e 100%);
+      border-bottom: 1px solid #1e293b;
+    }
+
+    .portal-header h1 {
+      font-size: 1.25rem;
+      font-weight: 800;
+      color: #38bdf8;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .portal-header p {
+      font-size: 0.82rem;
+      color: #94a3b8;
+      margin-top: 4px;
+    }
+
+    /* Registration Input Section */
+    .input-section {
+      width: 100%;
+      padding: 14px 18px 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      background: #0f172a;
+      border-bottom: 1px solid #1e293b;
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+
+    .form-group label {
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: #cbd5e1;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .input-row {
+      display: flex;
+      gap: 8px;
+    }
+
+    input[type="text"], select {
+      width: 100%;
+      background: #1e293b;
+      color: #f8fafc;
+      border: 1.5px solid #334155;
+      border-radius: 10px;
+      padding: 11px 14px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    input[type="text"]:focus, select:focus {
+      border-color: #38bdf8;
+      box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.2);
+    }
+
+    .pose-tabs {
+      display: flex;
+      gap: 6px;
+      overflow-x: auto;
+      padding-bottom: 2px;
+    }
+
+    .pose-tab {
+      flex: 1;
+      text-align: center;
+      padding: 8px 6px;
+      background: #1e293b;
+      color: #94a3b8;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      cursor: pointer;
+      user-select: none;
+      transition: all 0.2s;
+      white-space: nowrap;
+    }
+
+    .pose-tab.active {
+      background: #0284c7;
+      color: #ffffff;
+      border-color: #38bdf8;
+      box-shadow: 0 2px 10px rgba(56, 189, 248, 0.3);
+    }
+
+    /* Live Web Camera Viewport */
+    .viewport {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 4 / 3;
+      max-height: 400px;
+      background: #020617;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    @media (max-width: 480px) {
+      .viewport {
+        aspect-ratio: 3 / 4;
+        max-height: 380px;
+      }
+    }
+
+    video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transform: scaleX(-1);
+    }
+
+    /* Vignette Mask around Oval */
+    .vignette-mask {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 5;
+    }
+
+    /* The Vertical Biometric Face Circle/Oval Guide */
+    .oval-guide {
+      position: absolute;
+      top: 48%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 175px;
+      height: 245px;
+      border-radius: 50% / 50%;
+      pointer-events: none;
+      z-index: 10;
+      transition: all 0.25s ease-out;
+    }
+
+    @media (max-width: 420px) {
+      .oval-guide {
+        width: 155px;
+        height: 220px;
+      }
+    }
+
+    /* State 1: Red / Pending / Unaligned / Below 100% */
+    .oval-guide.state-red {
+      border: 3.5px dashed #ef4444;
+      box-shadow: 0 0 25px rgba(239, 68, 68, 0.6), inset 0 0 18px rgba(239, 68, 68, 0.25);
+      animation: pulseRed 1.8s infinite ease-in-out;
+    }
+
+    @keyframes pulseRed {
+      0%, 100% { border-color: #ef4444; box-shadow: 0 0 18px rgba(239, 68, 68, 0.5); }
+      50% { border-color: #f87171; box-shadow: 0 0 32px rgba(248, 113, 113, 0.85); }
+    }
+
+    /* State 2: Green / 100% Pure & Clear */
+    .oval-guide.state-green {
+      border: 4.5px solid #22c55e;
+      box-shadow: 0 0 35px rgba(34, 197, 94, 0.85), inset 0 0 25px rgba(34, 197, 94, 0.35);
+      animation: pulseGreen 1.4s infinite ease-in-out;
+    }
+
+    @keyframes pulseGreen {
+      0%, 100% { border-color: #22c55e; box-shadow: 0 0 25px rgba(34, 197, 94, 0.6); }
+      50% { border-color: #4ade80; box-shadow: 0 0 45px rgba(74, 222, 128, 0.95); }
+    }
+
+    /* Crosshairs inside circle */
+    .oval-crosshair {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      transition: opacity 0.2s;
+    }
+
+    .state-red .oval-crosshair { color: #fca5a5; opacity: 0.45; }
+    .state-green .oval-crosshair { color: #86efac; opacity: 0.75; }
+
+    /* Controls Panel */
+    .controls-panel {
+      width: 100%;
+      padding: 14px 18px;
+      background: #131b2e;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+    }
+
+    /* Web Capture Button */
+    .capture-btn {
+      width: 100%;
+      min-height: 52px;
+      padding: 14px 20px;
+      border-radius: 12px;
+      font-size: 1rem;
+      font-weight: 800;
+      letter-spacing: 0.03em;
+      border: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .capture-btn.disabled {
+      background: #334155;
+      color: #94a3b8;
+      cursor: not-allowed;
+      opacity: 0.8;
+      border: 1px solid #475569;
+    }
+
+    .capture-btn.enabled {
+      background: linear-gradient(135deg, #16a34a 0%, #22c55e 100%);
+      color: #ffffff;
+      cursor: pointer;
+      box-shadow: 0 4px 16px rgba(34, 197, 94, 0.45);
+      animation: buttonReadyPulse 1.8s infinite;
+    }
+
+    @keyframes buttonReadyPulse {
+      0%, 100% { transform: scale(1); box-shadow: 0 4px 16px rgba(34, 197, 94, 0.45); }
+      50% { transform: scale(1.02); box-shadow: 0 6px 24px rgba(34, 197, 94, 0.75); }
+    }
+
+    /* Status Banner */
+    .status-banner {
+      width: 100%;
+      padding: 10px 14px;
+      border-radius: 10px;
+      font-size: 0.88rem;
+      font-weight: 600;
+      line-height: 1.4;
+      display: none;
+      text-align: center;
+    }
+
+    .status-banner.success {
+      display: block;
+      background: rgba(34, 197, 94, 0.15);
+      color: #4ade80;
+      border: 1px solid rgba(34, 197, 94, 0.4);
+    }
+
+    .status-banner.error {
+      display: block;
+      background: rgba(239, 68, 68, 0.15);
+      color: #f87171;
+      border: 1px solid rgba(239, 68, 68, 0.4);
+    }
+
+    /* Retake Bar */
+    .retake-bar {
+      display: none;
+      width: 100%;
+      gap: 10px;
+    }
+
+    .retake-btn {
+      flex: 1;
+      min-height: 48px;
+      padding: 12px 16px;
+      background: #475569;
+      color: #f8fafc;
+      border: none;
+      border-radius: 12px;
+      font-weight: 700;
+      font-size: 0.95rem;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .retake-btn:active { background: #64748b; }
+
+    .camera-flash {
+      position: absolute;
+      top: 0; left: 0; width: 100%; height: 100%;
+      background: #ffffff; opacity: 0; pointer-events: none; z-index: 50;
+      transition: opacity 0.25s ease-out;
+    }
+
+    .preview-canvas {
+      display: none; width: 100%; height: 100%; object-fit: cover;
+    }
+  </style>
+</head>
+<body>
+  <div class="portal-card">
+    <div class="portal-header">
+      <h1>🏛️ Smart Attendance Portal</h1>
+      <p>Capture face strictly inside the circle to store with Registration Number</p>
+    </div>
+
+    <!-- Student Registration Number and Pose Selection -->
+    <div class="input-section">
+      <div class="form-group">
+        <label for="regInput">Registration Number / Roll Code *</label>
+        <div class="input-row">
+          <input type="text" id="regInput" placeholder="e.g. 221FA04001" autocomplete="off" autocorrect="off" autocapitalize="characters">
+          <select id="studentSelect" style="max-width: 140px;">
+            <option value="">Choose...</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Target Pose to Capture</label>
+        <div class="pose-tabs">
+          <div class="pose-tab active" data-pose="frontal">Frontal</div>
+          <div class="pose-tab" data-pose="left">Left Angle</div>
+          <div class="pose-tab" data-pose="right">Right Angle</div>
+          <div class="pose-tab" data-pose="smile">Smile</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Live Web Camera Viewport -->
+    <div class="viewport">
+      <video id="webcam" playsinline webkit-playsinline autoplay muted></video>
+      <canvas id="previewCanvas" class="preview-canvas"></canvas>
+      <div id="flash" class="camera-flash"></div>
+
+      <!-- Vignette SVG Overlay with Vertical Oval Cutout -->
+      <svg class="vignette-mask" viewBox="0 0 600 450" preserveAspectRatio="none">
+        <defs>
+          <mask id="ovalHoleMask">
+            <rect width="600" height="450" fill="white" />
+            <ellipse cx="300" cy="216" rx="88" ry="122" fill="black" />
+          </mask>
+        </defs>
+        <rect width="600" height="450" fill="rgba(10, 15, 29, 0.72)" mask="url(#ovalHoleMask)" />
+      </svg>
+
+      <!-- The Vertical Circle/Oval Guide -->
+      <div id="ovalGuide" class="oval-guide state-red">
+        <svg class="oval-crosshair" viewBox="0 0 175 245">
+          <line x1="25" y1="92" x2="150" y2="92" stroke="currentColor" stroke-dasharray="3 3" stroke-width="1.5" />
+          <line x1="87.5" y1="20" x2="87.5" y2="225" stroke="currentColor" stroke-dasharray="3 3" stroke-width="1.5" />
+          <circle cx="62" cy="92" r="3.5" fill="currentColor" opacity="0.8" />
+          <circle cx="113" cy="92" r="3.5" fill="currentColor" opacity="0.8" />
+        </svg>
+      </div>
+    </div>
+
+    <!-- Controls Panel -->
+    <div class="controls-panel">
+      <div id="statusBanner" class="status-banner"></div>
+
+      <button id="captureBtn" class="capture-btn disabled" disabled>
+        <span id="btnIcon">🔒</span>
+        <span id="btnText">FIT FACE IN CIRCLE (100% TO UNLOCK)</span>
+      </button>
+
+      <div id="retakeBar" class="retake-bar">
+        <button id="retakeBtn" class="retake-btn">🔄 Retake / Next Pose</button>
+      </div>
+    </div>
+  </div>
+
+  <canvas id="analysisCanvas" width="240" height="180" style="display:none;"></canvas>
+  <canvas id="captureCanvas" style="display:none;"></canvas>
+
+  <script>
+    const video = document.getElementById("webcam");
+    const previewCanvas = document.getElementById("previewCanvas");
+    const ovalGuide = document.getElementById("ovalGuide");
+    const captureBtn = document.getElementById("captureBtn");
+    const btnIcon = document.getElementById("btnIcon");
+    const btnText = document.getElementById("btnText");
+    const retakeBar = document.getElementById("retakeBar");
+    const retakeBtn = document.getElementById("retakeBtn");
+    const flash = document.getElementById("flash");
+    const statusBanner = document.getElementById("statusBanner");
+    const regInput = document.getElementById("regInput");
+    const studentSelect = document.getElementById("studentSelect");
+    const poseTabs = document.querySelectorAll(".pose-tab");
+    const analysisCanvas = document.getElementById("analysisCanvas");
+    const captureCanvas = document.getElementById("captureCanvas");
+
+    let isGreen = false;
+    let isCaptured = false;
+    let selectedPose = "frontal";
+    let analysisInterval = null;
+    let consecutiveGood = 0;
+    let consecutiveBad = 0;
+
+    // Pose Tab Selection
+    poseTabs.forEach(tab => {
+      tab.addEventListener("click", () => {
+        poseTabs.forEach(t => t.classList.remove("active"));
+        tab.classList.add("active");
+        selectedPose = tab.dataset.pose;
+      });
+    });
+
+    // Load registered students list for easy selection
+    fetch("/api/v1/enrollment/students-list")
+      .then(res => res.json())
+      .then(students => {
+        if (Array.isArray(students)) {
+          students.forEach(s => {
+            const opt = document.createElement("option");
+            opt.value = s.student_code;
+            opt.innerText = `${s.student_code} (${s.name})`;
+            studentSelect.appendChild(opt);
+          });
+        }
+      })
+      .catch(err => console.log("Student list fetch:", err));
+
+    studentSelect.addEventListener("change", () => {
+      if (studentSelect.value) {
+        regInput.value = studentSelect.value;
+      }
+    });
+
+    regInput.addEventListener("input", () => {
+      regInput.value = regInput.value.toUpperCase();
+    });
+
+    // Native FaceDetector if available
+    let nativeDetector = null;
+    let hasNativeDetector = false;
+    if ("FaceDetector" in window) {
+      try {
+        nativeDetector = new window.FaceDetector({ fastMode: true, maxDetectedFaces: 2 });
+        hasNativeDetector = true;
+      } catch (e) {
+        hasNativeDetector = false;
+      }
+    }
+
+    function playShutterSound() {
+      try {
+        if ("vibrate" in navigator) navigator.vibrate(60);
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(800, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(120, audioCtx.currentTime + 0.08);
+        gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+        gain.gain.linearRampToValueAtTime(0.01, audioCtx.currentTime + 0.12);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.12);
+      } catch(e) {}
+    }
+
+    // Initialize Web Camera (Strictly inside the Web)
+    function initWebCamera() {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        setRedState();
+        btnText.innerText = "CAMERA NOT SUPPORTED ON THIS BROWSER";
+        return;
+      }
+
+      const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+      const constraints = {
+        video: {
+          facingMode: { ideal: "user" },
+          width: { ideal: isMobile ? 720 : 1280 },
+          height: { ideal: isMobile ? 960 : 720 }
+        },
+        audio: false
+      };
+
+      navigator.mediaDevices.getUserMedia(constraints)
+        .then(stream => {
+          video.srcObject = stream;
+          video.onloadedmetadata = () => {
+            video.play();
+            startBiometricAnalysis();
+          };
+        })
+        .catch(err => {
+          console.error("Camera error:", err);
+          setRedState();
+          btnText.innerText = "PLEASE ALLOW CAMERA PERMISSION";
+        });
+    }
+
+    initWebCamera();
+
+    // Biometric Analysis: Strictly inside the Circle
+    function startBiometricAnalysis() {
+      const aCtx = analysisCanvas.getContext("2d", { willReadFrequently: true });
+
+      analysisInterval = setInterval(async () => {
+        if (isCaptured || video.paused || video.ended || video.readyState < 2) return;
+
+        aCtx.save();
+        aCtx.scale(-1, 1);
+        aCtx.drawImage(video, -analysisCanvas.width, 0, analysisCanvas.width, analysisCanvas.height);
+        aCtx.restore();
+
+        let faceDetected = false;
+        let isCentered = false;
+        let isGoodSize = false;
+        let isSharp = false;
+        let isLightingOk = false;
+
+        if (hasNativeDetector && nativeDetector) {
+          try {
+            const faces = await nativeDetector.detect(video);
+            if (faces && faces.length === 1) {
+              faceDetected = true;
+              const f = faces[0].boundingBox;
+              const vw = video.videoWidth;
+              const vh = video.videoHeight;
+              const normX = (f.x + f.width / 2) / vw;
+              const normY = (f.y + f.height / 2) / vh;
+              const normW = f.width / vw;
+              const normH = f.height / vh;
+              isCentered = (normX >= 0.38 && normX <= 0.62) && (normY >= 0.32 && normY <= 0.64);
+              isGoodSize = (normW >= 0.22 && normW <= 0.52) && (normH >= 0.26 && normH <= 0.65);
+            } else {
+              faceDetected = false;
+            }
+          } catch (e) {}
+        }
+
+        const w = analysisCanvas.width;
+        const h = analysisCanvas.height;
+        const imgData = aCtx.getImageData(0, 0, w, h);
+        const data = imgData.data;
+
+        const cx = w / 2;
+        const cy = Math.round(h * 0.48);
+        const rx = 36;
+        const ry = 49;
+
+        let ovalSumLuma = 0;
+        let ovalPixels = 0;
+        let prevLuma = null;
+        let diffs = [];
+
+        for (let y = cy - ry; y <= cy + ry; y += 2) {
+          for (let x = cx - rx; x <= cx + rx; x += 2) {
+            const dx = (x - cx) / rx;
+            const dy = (y - cy) / ry;
+            if (dx * dx + dy * dy <= 1.0) {
+              const idx = (Math.floor(y) * w + Math.floor(x)) * 4;
+              const luma = 0.299 * data[idx] + 0.587 * data[idx + 1] + 0.114 * data[idx + 2];
+              ovalSumLuma += luma;
+              ovalPixels++;
+              if (prevLuma !== null) diffs.push(Math.abs(luma - prevLuma));
+              prevLuma = luma;
+            }
+          }
+        }
+
+        const avgLuma = ovalPixels > 0 ? (ovalSumLuma / ovalPixels) : 0;
+        isLightingOk = (avgLuma >= 48 && avgLuma <= 220);
+
+        if (diffs.length > 0) {
+          const meanDiff = diffs.reduce((a, b) => a + b, 0) / diffs.length;
+          const varDiff = diffs.reduce((a, b) => a + Math.pow(b - meanDiff, 2), 0) / diffs.length;
+          isSharp = varDiff >= 26.0;
+        }
+
+        if (!hasNativeDetector || !nativeDetector) {
+          isCentered = (avgLuma >= 48 && avgLuma <= 220);
+          isGoodSize = true;
+          faceDetected = isSharp && isCentered;
+        }
+
+        const hasReg = regInput.value.trim().length > 0;
+        const passesAll = faceDetected && isCentered && isGoodSize && isSharp && isLightingOk && hasReg;
+
+        if (passesAll) {
+          consecutiveGood++;
+          consecutiveBad = 0;
+        } else {
+          consecutiveBad++;
+          consecutiveGood = 0;
+        }
+
+        if (consecutiveGood >= 3 && !isGreen) {
+          setGreenState();
+        } else if (consecutiveBad >= 2 && isGreen) {
+          setRedState();
+        }
+      }, 100);
+    }
+
+    function setGreenState() {
+      isGreen = true;
+      ovalGuide.className = "oval-guide state-green";
+      captureBtn.className = "capture-btn enabled";
+      captureBtn.disabled = false;
+      btnIcon.innerText = "📸";
+      btnText.innerText = "CAPTURE & SEND TO INTERFACE";
+    }
+
+    function setRedState() {
+      isGreen = false;
+      ovalGuide.className = "oval-guide state-red";
+      captureBtn.className = "capture-btn disabled";
+      captureBtn.disabled = true;
+      btnIcon.innerText = "🔒";
+      const hasReg = regInput.value.trim().length > 0;
+      if (!hasReg) {
+        btnText.innerText = "ENTER REGISTRATION NUMBER FIRST";
+      } else {
+        btnText.innerText = "FIT FACE IN CIRCLE (100% TO UNLOCK)";
+      }
+    }
+
+    // Capture & Send to Interface
+    captureBtn.addEventListener("click", async () => {
+      const regNo = regInput.value.trim().toUpperCase();
+      if (!regNo) {
+        alert("Please enter the student registration number first!");
+        regInput.focus();
+        return;
+      }
+      if (!isGreen || isCaptured) return;
+      isCaptured = true;
+      playShutterSound();
+
+      flash.style.opacity = "0.9";
+      setTimeout(() => { flash.style.opacity = "0"; }, 250);
+
+      captureCanvas.width = video.videoWidth;
+      captureCanvas.height = video.videoHeight;
+      const cCtx = captureCanvas.getContext("2d");
+      cCtx.drawImage(video, 0, 0, captureCanvas.width, captureCanvas.height);
+      const fullQualityDataUrl = captureCanvas.toDataURL("image/jpeg", 0.95);
+
+      previewCanvas.width = video.videoWidth;
+      previewCanvas.height = video.videoHeight;
+      const pCtx = previewCanvas.getContext("2d");
+      pCtx.drawImage(video, 0, 0, previewCanvas.width, previewCanvas.height);
+
+      video.style.display = "none";
+      previewCanvas.style.display = "block";
+      captureBtn.style.display = "none";
+      retakeBar.style.display = "flex";
+
+      statusBanner.className = "status-banner";
+      statusBanner.style.display = "block";
+      statusBanner.innerText = `⏳ Sending photo for ${regNo} to dashboard & validating 100% purity...`;
+
+      try {
+        const response = await fetch("/api/v1/enrollment/web-submit", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            student_code: regNo,
+            target_pose: selectedPose,
+            image_base64: fullQualityDataUrl
+          })
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.is_pure) {
+          setGreenState();
+          statusBanner.className = "status-banner success";
+          statusBanner.innerHTML = `🎉 <strong>100% PURE PHOTO SAVED!</strong><br>Stored in database for <strong>${data.student_code}</strong> (${data.student_name}). Photo sent to main interface.`;
+        } else {
+          setRedState();
+          statusBanner.className = "status-banner error";
+          statusBanner.innerHTML = `❌ <strong>NOT SAVED (${data.purity_score}%)</strong><br>${data.actionable_feedback || data.message || "Quality standard not met."}<br>Click Retake to adjust your position inside the circle.`;
+        }
+      } catch (err) {
+        console.error("Submission failed:", err);
+        setRedState();
+        statusBanner.className = "status-banner error";
+        statusBanner.innerText = "❌ Network error connecting to dashboard. Please check your connection.";
+      }
+    });
+
+    retakeBtn.addEventListener("click", () => {
+      isCaptured = false;
+      video.style.display = "block";
+      previewCanvas.style.display = "none";
+      captureBtn.style.display = "flex";
+      retakeBar.style.display = "none";
+      statusBanner.style.display = "none";
+      setRedState();
+    });
+  </script>
+</body>
+</html>

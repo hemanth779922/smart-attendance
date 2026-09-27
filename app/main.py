@@ -1,4 +1,4 @@
-﻿import time
+import time
 import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
@@ -70,6 +70,21 @@ async def add_process_time_header(request: Request, call_next):
 app.include_router(api_router, prefix=settings.API_V1_STR)
 
 
+from fastapi.responses import JSONResponse, HTMLResponse
+import os
+
+STATIC_ENROLL_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static", "enroll.html")
+
+
+@app.get("/enroll", response_class=HTMLResponse, tags=["Enrollment Portal"])
+def enrollment_web_portal():
+    """Dedicated mobile/web face enrollment portal with in-circle live camera capture."""
+    if os.path.exists(STATIC_ENROLL_PATH):
+        with open(STATIC_ENROLL_PATH, "r", encoding="utf-8") as f:
+            return HTMLResponse(content=f.read())
+    return HTMLResponse("<h2>Enrollment portal page not found.</h2>", status_code=404)
+
+
 @app.get("/", tags=["Health"])
 def health_check():
     """Health check endpoint."""
@@ -78,6 +93,7 @@ def health_check():
         "app": settings.PROJECT_NAME,
         "version": settings.PROJECT_VERSION,
         "environment": settings.ENVIRONMENT,
+        "enroll_portal": "/enroll",
         "docs_url": "/docs"
     }
 

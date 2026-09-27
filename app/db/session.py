@@ -57,8 +57,13 @@ def init_db() -> None:
                     conn.execute(text("ALTER TABLE face_embeddings ADD COLUMN embedding TEXT;"))
                     conn.commit()
                     logger.info("Auto-migrated SQLite face_embeddings: added 'embedding' column.")
+                if cols and "photo_path" not in cols:
+                    conn.execute(text("ALTER TABLE face_embeddings ADD COLUMN photo_path TEXT;"))
+                    conn.commit()
+                    logger.info("Auto-migrated SQLite face_embeddings: added 'photo_path' column.")
             elif settings.DATABASE_URL.startswith("postgresql"):
                 conn.execute(text("ALTER TABLE face_embeddings ADD COLUMN IF NOT EXISTS embedding vector(128);"))
+                conn.execute(text("ALTER TABLE face_embeddings ADD COLUMN IF NOT EXISTS photo_path VARCHAR(500);"))
                 conn.commit()
     except Exception as e:
         logger.debug(f"Schema check migration notice: {e}")

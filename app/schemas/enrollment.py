@@ -1,4 +1,4 @@
-﻿from typing import Optional, List
+from typing import Optional, List
 from pydantic import BaseModel
 
 
@@ -35,3 +35,23 @@ class EnrollmentStatusResponse(BaseModel):
 
 class ResetEnrollmentRequest(BaseModel):
     student_id: int
+
+
+class WebEnrollmentSubmitRequest(BaseModel):
+    student_code: str
+    target_pose: Optional[str] = "frontal"
+    image_base64: str
+    auto_store: Optional[bool] = True
+
+
+class WebEnrollmentSubmitResponse(BaseModel):
+    status: str
+    is_pure: bool
+    purity_score: float
+    message: str
+    student_code: str
+    student_name: str
+    target_pose: str
+    photo_path: Optional[str] = None
+    stored_in_db: bool = False
+    actionable_feedback: Optional[str] = None

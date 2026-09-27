@@ -16,8 +16,12 @@ from app.schemas.enrollment import (
     EnrollmentSampleRequest,
     EnrollmentSampleResponse,
     EnrollmentStatusResponse,
-    ResetEnrollmentRequest
+    ResetEnrollmentRequest,
+    WebEnrollmentSubmitRequest,
+    WebEnrollmentSubmitResponse
 )
+import os
+import time
 from app.ai.low_light import detect_low_light, enhance_low_light, assess_face_quality
 from app.ai.quality_assessment import assess_frame_quality, validate_pure_enrollment_quality
 from app.ai.face_engine import detect_faces, align_face, estimate_pose, generate_face_embedding
@@ -253,3 +257,165 @@ def reset_enrollment(
     deleted = db.query(FaceEmbedding).filter(FaceEmbedding.student_id == req.student_id).delete()
     db.commit()
     return {"status": "success", "message": f"Cleared {deleted} face embeddings for {student.name}"}
+
+
+# In-memory recent submissions feed for real-time dashboard display
+RECENT_WEB_SUBMISSIONS: List[dict] = []
+
+
+@router.get("/students-list")
+def get_students_list(db: Session = Depends(get_db)):
+    """Public helper for web enrollment portal to list or autocomplete registered students."""
+    students = db.query(Student).filter(Student.is_active == True).order_by(Student.student_code).all()
+    return [
+        {
+            "id": s.id,
+            "student_code": s.student_code,
+            "name": s.name,
+            "department": s.department
+        }
+        for s in students
+    ]
+
+
+@router.get("/recent-submissions")
+def get_recent_submissions():
+    """Retrieve recent web submissions with registration numbers for dashboard display."""
+    return RECENT_WEB_SUBMISSIONS[-30:][::-1]
+
+
+@router.post("/web-submit", response_model=WebEnrollmentSubmitResponse)
+def submit_web_enrollment(
+    req: WebEnrollmentSubmitRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Dedicated endpoint for the separate web capture portal.
+    Captures photo strictly inside the circle, saves the photo file on disk,
+    validates 100% biometric purity, and stores the photo along with the registration number in the database.
+    """
+    student_code = (req.student_code or "").strip().upper()
+    if not student_code:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Student registration number / roll code is required.")
+
+    # 1. Lookup student or auto-create if not yet registered
+    student = db.query(Student).filter(Student.student_code == student_code).first()
+    if not student:
+        student = Student(
+            student_code=student_code,
+            name=f"Student {student_code}",
+            email=f"{student_code.lower()}@college.edu",
+            department="Computer Science",
+            year=1,
+            is_active=True
+        )
+        db.add(student)
+        db.commit()
+        db.refresh(student)
+
+    # 2. Decode high-resolution image
+    frame = decode_base64_image(req.image_base64)
+    target_pose = (req.target_pose or "frontal").lower()
+
+    # 3. Save photo to persistent disk storage
+    storage_dir = os.path.join(os.getcwd(), "storage", "enrollments", student_code)
+    os.makedirs(storage_dir, exist_ok=True)
+    filename = f"{student_code}_{target_pose}_{int(time.time())}.jpg"
+    abs_photo_path = os.path.join(storage_dir, filename)
+    cv2.imwrite(abs_photo_path, frame)
+    rel_photo_path = os.path.join("storage", "enrollments", student_code, filename)
+
+    # 4. Face detection and 100% pure biometric validation
+    detected_faces = detect_faces(frame)
+    strict_liveness = (target_pose != "any")
+    pure_val = validate_pure_enrollment_quality(
+        frame=frame,
+        detected_faces=detected_faces,
+        target_pose=target_pose,
+        strict_liveness=strict_liveness
+    )
+
+    is_pure = bool(pure_val.get("is_pure", False))
+    p_score = float(pure_val.get("purity_score", 0.0))
+    feedback = str(pure_val.get("actionable_feedback", ""))
+    detected_pose = str(pure_val.get("detected_pose", target_pose))
+
+    submission_entry = {
+        "student_code": student_code,
+        "student_name": student.name,
+        "target_pose": target_pose,
+        "purity_score": p_score,
+        "is_pure": is_pure,
+        "photo_path": rel_photo_path,
+        "stored_in_db": False,
+        "timestamp": int(time.time()),
+        "actionable_feedback": feedback
+    }
+
+    if not is_pure:
+        RECENT_WEB_SUBMISSIONS.append(submission_entry)
+        return WebEnrollmentSubmitResponse(
+            status="rejected",
+            is_pure=False,
+            purity_score=p_score,
+            message=feedback,
+            student_code=student_code,
+            student_name=student.name,
+            target_pose=target_pose,
+            photo_path=rel_photo_path,
+            stored_in_db=False,
+            actionable_feedback=feedback
+        )
+
+    # 5. Check duplicate face across other students
+    face = detected_faces[0]
+    aligned = align_face(face["face_crop"], face.get("landmarks"))
+    new_vec = generate_face_embedding(aligned)
+    dup = search_similar_face(new_vec, db, threshold=0.85)
+
+    if dup and dup["recognized"] and dup["student_id"] != student.id:
+        conflict_msg = f"Duplicate identity match with student {dup['student_name']} ({dup['student_code']})."
+        submission_entry["actionable_feedback"] = conflict_msg
+        RECENT_WEB_SUBMISSIONS.append(submission_entry)
+        return WebEnrollmentSubmitResponse(
+            status="conflict",
+            is_pure=False,
+            purity_score=p_score,
+            message=conflict_msg,
+            student_code=student_code,
+            student_name=student.name,
+            target_pose=target_pose,
+            photo_path=rel_photo_path,
+            stored_in_db=False,
+            actionable_feedback=conflict_msg
+        )
+
+    # 6. Store face embedding with photo_path in database
+    new_fe = FaceEmbedding(
+        student_id=student.id,
+        pose=detected_pose,
+        quality_score=p_score,
+        photo_path=rel_photo_path,
+        is_active=True
+    )
+    new_fe.set_embedding(new_vec)
+    db.add(new_fe)
+    db.commit()
+    db.refresh(new_fe)
+
+    submission_entry["stored_in_db"] = True
+    RECENT_WEB_SUBMISSIONS.append(submission_entry)
+
+    return WebEnrollmentSubmitResponse(
+        status="success",
+        is_pure=True,
+        purity_score=p_score,
+        message=f"100% Pure sample stored for Registration Number: {student_code}!",
+        student_code=student_code,
+        student_name=student.name,
+        target_pose=target_pose,
+        photo_path=rel_photo_path,
+        stored_in_db=True,
+        actionable_feedback=feedback
+    )
+

@@ -689,22 +689,49 @@ elif menu_choice == "👤 Smart Face Enrollment":
         else:
             st.info("ℹ️ No biometric profile enrolled yet. Capture your photo below to activate facial recognition.")
 
-        # Phone enrollment helper
+        # Dedicated Web Face Capture Portal Link & Live Received Submissions
         import socket
         try:
             local_ip = socket.gethostbyname(socket.gethostname())
         except Exception:
             local_ip = "192.168.1.3"
 
-        with st.expander("📱 Enrolling via Mobile Phone? (Click for Instructions)", expanded=False):
-            st.markdown(f"""
-            **To enroll directly using your smartphone:**
-            1. Connect your phone to the same Wi-Fi network.
-            2. Open your phone's browser (Chrome / Safari) to:
-               👉 **`http://{local_ip}:8501`**
-            3. In the viewfinder below, use the live camera or tap **📱 Snap with Native Phone Camera**.
-            4. When your face is clear in the circle, tap Capture — **it will automatically store in the database**!
-            """)
+        st.markdown(f"""
+        <div style="background: linear-gradient(135deg, #0369a1 0%, #0284c7 100%); padding: 16px 20px; border-radius: 12px; margin-bottom: 16px; color: white;">
+            <h4 style="margin: 0; color: #ffffff; display: flex; align-items: center; gap: 8px;">🌐 Dedicated Web Face Capture Portal</h4>
+            <p style="margin: 6px 0 10px 0; font-size: 0.95rem; color: #e0f2fe;">
+                Open on phone or browser: <strong><a href="http://{local_ip}:8000/enroll" target="_blank" style="color: #fef08a; text-decoration: underline;">http://{local_ip}:8000/enroll</a></strong> (or <a href="http://localhost:8000/enroll" target="_blank" style="color: #fef08a; text-decoration: underline;">http://localhost:8000/enroll</a>)
+            </p>
+            <p style="margin: 0; font-size: 0.85rem; color: #bae6fd;">
+                📷 Captures strictly inside the vertical biometric circle in the web, saves the photo file, and sends it directly along with the registration number to this interface!
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+
+        from app.api.api_v1.enrollment import RECENT_WEB_SUBMISSIONS
+        with st.expander(f"📥 Received Web Photo Submissions ({len(RECENT_WEB_SUBMISSIONS)} recent)", expanded=bool(RECENT_WEB_SUBMISSIONS)):
+            if RECENT_WEB_SUBMISSIONS:
+                st.caption("Photos submitted from the separate web portal with their registration numbers:")
+                cols_count = min(3, max(1, len(RECENT_WEB_SUBMISSIONS)))
+                sub_cols = st.columns(cols_count)
+                for s_idx, sub in enumerate(reversed(RECENT_WEB_SUBMISSIONS[-6:])):
+                    sc = sub_cols[s_idx % cols_count]
+                    with sc:
+                        p_path = sub.get("photo_path")
+                        if p_path and os.path.exists(p_path):
+                            st.image(p_path, caption=f"Reg: {sub['student_code']} ({sub['target_pose']})", use_container_width=True)
+                        st.write(f"👤 **{sub['student_name']}** (`{sub['student_code']}`)")
+                        st.write(f"🎯 Pose: `{sub['target_pose'].upper()}`")
+                        if sub.get("is_pure"):
+                            st.write(f"⭐ Purity: `{sub.get('purity_score', 0)}%` (100% Pure)")
+                            if sub.get("stored_in_db"):
+                                st.success("✅ Stored in Database")
+                            else:
+                                st.info("⏳ Ready to commit")
+                        else:
+                            st.error(f"❌ Rejected: {sub.get('actionable_feedback', 'Below purity standard')}")
+            else:
+                st.info(f"No web photo captures in queue yet. Open http://{local_ip}:8000/enroll on your phone to capture.")
 
         c1, c2 = st.columns([1.1, 0.9])
         with c1:
@@ -840,15 +867,32 @@ elif menu_choice == "👤 Smart Face Enrollment":
                     st.warning("⚠️ **Sample Not Saved**: Only samples meeting 100% pure biometric standards are stored in the database. Please adjust lighting or alignment and click Retake Photo.")
 
         with c2:
-            st.subheader("📋 Enrolled Poses")
+            reg_code = selected_student_str.split(" - ")[0]
+            st.subheader(f"📋 Enrolled Photos for {reg_code}")
             # Refresh embeddings list from database
             existing_embeddings = db.query(FaceEmbedding).filter(
                 FaceEmbedding.student_id == selected_student_id,
                 FaceEmbedding.is_active == True
             ).all()
             if existing_embeddings:
-                poses_data = [{"Sample #": i+1, "Pose": fe.pose, "Quality Score": round(fe.quality_score, 1)} for i, fe in enumerate(existing_embeddings)]
+                poses_data = [
+                    {
+                        "Sample #": i + 1,
+                        "Reg No": reg_code,
+                        "Pose": fe.pose.upper(),
+                        "Quality Score": f"{round(fe.quality_score, 1)}%",
+                        "Photo": "Disk & DB" if fe.photo_path else "DB Only"
+                    }
+                    for i, fe in enumerate(existing_embeddings)
+                ]
                 st.dataframe(pd.DataFrame(poses_data), use_container_width=True)
+
+                # Show stored photo thumbnails if available
+                img_cols = st.columns(min(3, max(1, len(existing_embeddings))))
+                for idx, fe in enumerate(existing_embeddings):
+                    if fe.photo_path and os.path.exists(fe.photo_path):
+                        with img_cols[idx % len(img_cols)]:
+                            st.image(fe.photo_path, caption=f"📸 {reg_code} ({fe.pose.upper()})", use_container_width=True)
 
                 if st.button("🗑️ Reset All Embeddings for this Student"):
                     db.query(FaceEmbedding).filter(FaceEmbedding.student_id == selected_student_id).delete()
@@ -856,7 +900,7 @@ elif menu_choice == "👤 Smart Face Enrollment":
                     st.success("All biometric embeddings reset!")
                     st.rerun()
             else:
-                st.info("No face embeddings stored yet for this student.")
+                st.info(f"No face photos or embeddings stored yet for {reg_code}.")
 
     finally:
         db.close()

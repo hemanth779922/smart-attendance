@@ -29,6 +29,7 @@ class FaceEmbedding(Base):
 
     pose = Column(String(50), default="frontal", nullable=False)
     quality_score = Column(Float, nullable=False, default=1.0)
+    photo_path = Column(String(500), nullable=True)
     is_active = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
 

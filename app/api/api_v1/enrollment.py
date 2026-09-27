@@ -4,6 +4,7 @@ from typing import List
 import cv2
 import numpy as np
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 
@@ -22,6 +23,12 @@ from app.schemas.enrollment import (
 )
 import os
 import time
+from app.services.captured_spreadsheet import (
+    record_captured_photo,
+    get_all_captured_records,
+    get_csv_file_path,
+    get_excel_file_path
+)
 from app.ai.low_light import detect_low_light, enhance_low_light, assess_face_quality
 from app.ai.quality_assessment import assess_frame_quality, validate_pure_enrollment_quality
 from app.ai.face_engine import detect_faces, align_face, estimate_pose, generate_face_embedding
@@ -303,15 +310,18 @@ def submit_web_enrollment(
     if not student:
         student = Student(
             student_code=student_code,
-            name=f"Student {student_code}",
+            name=req.student_name.strip() if req.student_name and req.student_name.strip() else f"Student {student_code}",
             email=f"{student_code.lower()}@college.edu",
-            department="Computer Science",
+            department=req.department.strip() if req.department and req.department.strip() else "Computer Science",
             year=1,
             is_active=True
         )
         db.add(student)
         db.commit()
         db.refresh(student)
+    elif req.student_name and req.student_name.strip() and student.name.startswith("Student "):
+        student.name = req.student_name.strip()
+        db.commit()
 
     # 2. Decode high-resolution image
     frame = decode_base64_image(req.image_base64)
@@ -340,6 +350,18 @@ def submit_web_enrollment(
     feedback = str(pure_val.get("actionable_feedback", ""))
     detected_pose = str(pure_val.get("detected_pose", target_pose))
 
+    # Persist record in CSV & Excel
+    record_captured_photo(
+        reg_number=student_code,
+        full_name=student.name,
+        department=student.department or "General",
+        pose=detected_pose,
+        quality_score=p_score,
+        photo_filename=filename,
+        photo_path=rel_photo_path,
+        status="STORED" if is_pure else "REJECTED"
+    )
+
     submission_entry = {
         "student_code": student_code,
         "student_name": student.name,
@@ -364,7 +386,9 @@ def submit_web_enrollment(
             target_pose=target_pose,
             photo_path=rel_photo_path,
             stored_in_db=False,
-            actionable_feedback=feedback
+            actionable_feedback=feedback,
+            csv_stored=True,
+            excel_stored=True
         )
 
     # 5. Check duplicate face across other students
@@ -387,7 +411,9 @@ def submit_web_enrollment(
             target_pose=target_pose,
             photo_path=rel_photo_path,
             stored_in_db=False,
-            actionable_feedback=conflict_msg
+            actionable_feedback=conflict_msg,
+            csv_stored=True,
+            excel_stored=True
         )
 
     # 6. Store face embedding with photo_path in database
@@ -416,6 +442,41 @@ def submit_web_enrollment(
         target_pose=target_pose,
         photo_path=rel_photo_path,
         stored_in_db=True,
-        actionable_feedback=feedback
+        actionable_feedback=feedback,
+        csv_stored=True,
+        excel_stored=True
     )
+
+
+@router.get("/captured-records")
+def get_captured_spreadsheet_records():
+    """Returns all captured records currently stored in the CSV/Excel spreadsheet."""
+    return get_all_captured_records()
+
+
+@router.get("/export/csv")
+def export_captured_csv():
+    """Downloads the captured student records CSV file."""
+    csv_path = get_csv_file_path()
+    if not os.path.exists(csv_path):
+        raise HTTPException(status_code=404, detail="No captured records found.")
+    return FileResponse(
+        csv_path,
+        media_type="text/csv",
+        filename="captured_students.csv"
+    )
+
+
+@router.get("/export/excel")
+def export_captured_excel():
+    """Downloads the captured student records Excel (.xlsx) file."""
+    excel_path = get_excel_file_path()
+    if not os.path.exists(excel_path):
+        raise HTTPException(status_code=404, detail="No captured records found.")
+    return FileResponse(
+        excel_path,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        filename="captured_students.xlsx"
+    )
+
 

@@ -71,14 +71,19 @@ app.include_router(api_router, prefix=settings.API_V1_STR)
 
 
 from fastapi.responses import JSONResponse, HTMLResponse
+from fastapi.staticfiles import StaticFiles
 import os
 
 STATIC_ENROLL_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static", "enroll.html")
+STORAGE_DIR = os.path.join(os.getcwd(), "storage")
+os.makedirs(STORAGE_DIR, exist_ok=True)
+app.mount("/storage", StaticFiles(directory=STORAGE_DIR), name="storage")
 
 
 @app.get("/enroll", response_class=HTMLResponse, tags=["Enrollment Portal"])
+@app.get("/capture", response_class=HTMLResponse, tags=["Enrollment Portal"])
 def enrollment_web_portal():
-    """Dedicated mobile/web face enrollment portal with in-circle live camera capture."""
+    """Dedicated mobile/web face enrollment portal with in-circle live camera capture and Excel/CSV export."""
     if os.path.exists(STATIC_ENROLL_PATH):
         with open(STATIC_ENROLL_PATH, "r", encoding="utf-8") as f:
             return HTMLResponse(content=f.read())

@@ -697,14 +697,19 @@ elif menu_choice == "👤 Smart Face Enrollment":
             local_ip = "192.168.1.3"
 
         st.markdown(f"""
-        <div style="background: linear-gradient(135deg, #0369a1 0%, #0284c7 100%); padding: 16px 20px; border-radius: 12px; margin-bottom: 16px; color: white;">
+        <div style="background: linear-gradient(135deg, #0369a1 0%, #0284c7 100%); padding: 18px 22px; border-radius: 12px; margin-bottom: 16px; color: white; box-shadow: 0 4px 14px rgba(2, 132, 199, 0.25);">
             <h4 style="margin: 0; color: #ffffff; display: flex; align-items: center; gap: 8px;">🌐 Dedicated Web Face Capture Portal</h4>
-            <p style="margin: 6px 0 10px 0; font-size: 0.95rem; color: #e0f2fe;">
-                Open on phone or browser: <strong><a href="http://{local_ip}:8000/enroll" target="_blank" style="color: #fef08a; text-decoration: underline;">http://{local_ip}:8000/enroll</a></strong> (or <a href="http://localhost:8000/enroll" target="_blank" style="color: #fef08a; text-decoration: underline;">http://localhost:8000/enroll</a>)
-            </p>
-            <p style="margin: 0; font-size: 0.85rem; color: #bae6fd;">
-                📷 Captures strictly inside the vertical biometric circle in the web, saves the photo file, and sends it directly along with the registration number to this interface!
-            </p>
+            <div style="margin: 10px 0; display: flex; flex-wrap: wrap; gap: 10px;">
+                <a href="https://{local_ip}:8443/enroll" target="_blank" style="display: inline-flex; align-items: center; gap: 6px; background: #22c55e; color: #ffffff; font-weight: 700; padding: 9px 16px; border-radius: 8px; text-decoration: none; font-size: 0.95rem; box-shadow: 0 2px 8px rgba(34, 197, 94, 0.4);">
+                    📱 Open on Phone Camera (HTTPS): https://{local_ip}:8443/enroll
+                </a>
+                <a href="http://localhost:8000/enroll" target="_blank" style="display: inline-flex; align-items: center; gap: 6px; background: rgba(255, 255, 255, 0.15); color: #ffffff; font-weight: 600; padding: 9px 14px; border-radius: 8px; text-decoration: none; font-size: 0.9rem;">
+                    💻 Open on Desktop: http://localhost:8000/enroll
+                </a>
+            </div>
+            <div style="font-size: 0.85rem; color: #e0f2fe; line-height: 1.4; background: rgba(0, 0, 0, 0.15); padding: 8px 12px; border-radius: 8px; margin-top: 6px;">
+                🔒 <strong>Phone Camera Permission:</strong> Mobile browsers require HTTPS for camera access. When opening the HTTPS link on your phone, tap <em>"Advanced"</em> ➔ <em>"Proceed to {local_ip}"</em>. The camera will immediately open inside the vertical oval!
+            </div>
         </div>
         """, unsafe_allow_html=True)
 
@@ -731,7 +736,48 @@ elif menu_choice == "👤 Smart Face Enrollment":
                         else:
                             st.error(f"❌ Rejected: {sub.get('actionable_feedback', 'Below purity standard')}")
             else:
-                st.info(f"No web photo captures in queue yet. Open http://{local_ip}:8000/enroll on your phone to capture.")
+                st.info(f"No web photo captures in queue yet. Open https://{local_ip}:8443/enroll or http://localhost:8000/enroll to capture.")
+
+        # Excel & CSV Spreadsheet Section
+        from app.services.captured_spreadsheet import get_all_captured_records, get_csv_file_path, get_excel_file_path
+        captured_records = get_all_captured_records()
+
+        with st.expander(f"📊 Captured Student Photos Spreadsheet ({len(captured_records)} records in Excel/CSV)", expanded=bool(captured_records)):
+            st.markdown("All photos captured via the web portal are automatically logged and stored into both **Excel (`.xlsx`)** and **CSV (`.csv`)** with their registration number, photo path, timestamp, and biometric purity.")
+
+            dl_c1, dl_c2, dl_c3 = st.columns([1, 1, 2])
+            excel_p = get_excel_file_path()
+            csv_p = get_csv_file_path()
+
+            with dl_c1:
+                if os.path.exists(excel_p):
+                    with open(excel_p, "rb") as ef:
+                        st.download_button(
+                            label="📥 Download Excel (.xlsx)",
+                            data=ef.read(),
+                            file_name="captured_students.xlsx",
+                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                            use_container_width=True
+                        )
+            with dl_c2:
+                if os.path.exists(csv_p):
+                    with open(csv_p, "rb") as cf:
+                        st.download_button(
+                            label="📥 Download CSV (.csv)",
+                            data=cf.read(),
+                            file_name="captured_students.csv",
+                            mime="text/csv",
+                            use_container_width=True
+                        )
+            with dl_c3:
+                st.caption(f"📁 Local storage: `{os.path.relpath(csv_p)}` and `{os.path.relpath(excel_p)}`")
+
+            if captured_records:
+                import pandas as pd
+                df_records = pd.DataFrame(captured_records)
+                st.dataframe(df_records, use_container_width=True, hide_index=True)
+            else:
+                st.info("No records captured yet. Use the web portal to capture student photos.")
 
         c1, c2 = st.columns([1.1, 0.9])
         with c1:

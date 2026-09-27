@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Smart Attendance - Student Face Capture Portal</title>
+  <title>Smart Attendance - Student Face Capture & Excel/CSV Portal</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
     body {
@@ -14,13 +14,13 @@
       flex-direction: column;
       align-items: center;
       justify-content: flex-start;
-      padding: 14px 10px;
+      padding: 16px 12px 40px;
       touch-action: manipulation;
     }
 
     .portal-card {
       width: 100%;
-      max-width: 480px;
+      max-width: 490px;
       background: #131b2e;
       border: 1px solid #1e293b;
       border-radius: 20px;
@@ -56,13 +56,68 @@
       margin-top: 4px;
     }
 
+    /* HTTPS Guidance for Mobile Web Browsers */
+    .https-notice {
+      margin: 12px 18px 0;
+      padding: 14px 16px;
+      background: linear-gradient(135deg, rgba(239, 68, 68, 0.18) 0%, rgba(185, 28, 28, 0.28) 100%);
+      border: 1.5px solid #ef4444;
+      border-radius: 12px;
+      color: #fecaca;
+      display: none;
+      gap: 12px;
+      align-items: flex-start;
+    }
+    .https-icon {
+      font-size: 1.6rem;
+      line-height: 1;
+    }
+    .https-content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .https-title {
+      font-weight: 800;
+      font-size: 0.95rem;
+      color: #ffffff;
+    }
+    .https-text {
+      font-size: 0.84rem;
+      line-height: 1.4;
+      color: #fca5a5;
+    }
+    .https-btn {
+      display: inline-block;
+      margin-top: 4px;
+      padding: 10px 16px;
+      background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+      color: #ffffff;
+      text-decoration: none;
+      font-weight: 700;
+      font-size: 0.92rem;
+      border-radius: 9px;
+      text-align: center;
+      box-shadow: 0 4px 14px rgba(34, 197, 94, 0.4);
+    }
+    .https-help {
+      font-size: 0.78rem;
+      color: #cbd5e1;
+      line-height: 1.35;
+      margin-top: 4px;
+      padding: 6px 10px;
+      background: rgba(15, 23, 42, 0.6);
+      border-radius: 6px;
+    }
+
     /* Registration Input Section */
     .input-section {
       width: 100%;
       padding: 14px 18px 10px;
       display: flex;
       flex-direction: column;
-      gap: 12px;
+      gap: 10px;
       background: #0f172a;
       border-bottom: 1px solid #1e293b;
     }
@@ -70,11 +125,11 @@
     .form-group {
       display: flex;
       flex-direction: column;
-      gap: 5px;
+      gap: 4px;
     }
 
     .form-group label {
-      font-size: 0.8rem;
+      font-size: 0.78rem;
       font-weight: 700;
       color: #cbd5e1;
       text-transform: uppercase;
@@ -92,8 +147,8 @@
       color: #f8fafc;
       border: 1.5px solid #334155;
       border-radius: 10px;
-      padding: 11px 14px;
-      font-size: 0.95rem;
+      padding: 10px 12px;
+      font-size: 0.92rem;
       font-weight: 600;
       outline: none;
       transition: border-color 0.2s;
@@ -139,7 +194,7 @@
       position: relative;
       width: 100%;
       aspect-ratio: 4 / 3;
-      max-height: 400px;
+      max-height: 390px;
       background: #020617;
       overflow: hidden;
       display: flex;
@@ -150,7 +205,7 @@
     @media (max-width: 480px) {
       .viewport {
         aspect-ratio: 3 / 4;
-        max-height: 380px;
+        max-height: 370px;
       }
     }
 
@@ -248,40 +303,73 @@
       width: 100%;
       min-height: 52px;
       padding: 14px 20px;
-      border-radius: 12px;
+      border: none;
+      border-radius: 14px;
       font-size: 1rem;
       font-weight: 800;
-      letter-spacing: 0.03em;
-      border: none;
+      letter-spacing: 0.04em;
       display: flex;
       align-items: center;
       justify-content: center;
       gap: 10px;
       cursor: pointer;
-      -webkit-tap-highlight-color: transparent;
-      touch-action: manipulation;
-      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+      transition: all 0.25s ease-in-out;
+      outline: none;
     }
 
     .capture-btn.disabled {
-      background: #334155;
-      color: #94a3b8;
+      background: #1e293b;
+      color: #64748b;
+      border: 1.5px solid #334155;
       cursor: not-allowed;
-      opacity: 0.8;
-      border: 1px solid #475569;
+      box-shadow: none;
     }
 
-    .capture-btn.enabled {
-      background: linear-gradient(135deg, #16a34a 0%, #22c55e 100%);
+    .capture-btn.active {
+      background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
       color: #ffffff;
-      cursor: pointer;
-      box-shadow: 0 4px 16px rgba(34, 197, 94, 0.45);
-      animation: buttonReadyPulse 1.8s infinite;
+      box-shadow: 0 0 28px rgba(34, 197, 94, 0.65), 0 4px 12px rgba(0, 0, 0, 0.4);
+      transform: scale(1.02);
+      animation: buttonBounce 1.5s infinite;
     }
 
-    @keyframes buttonReadyPulse {
-      0%, 100% { transform: scale(1); box-shadow: 0 4px 16px rgba(34, 197, 94, 0.45); }
-      50% { transform: scale(1.02); box-shadow: 0 6px 24px rgba(34, 197, 94, 0.75); }
+    @keyframes buttonBounce {
+      0%, 100% { transform: scale(1.02); }
+      50% { transform: scale(1.04); }
+    }
+
+    .capture-btn.active:active {
+      transform: scale(0.97);
+    }
+
+    /* Alternate Device Camera Button */
+    .alt-cam-row {
+      width: 100%;
+      display: flex;
+      gap: 8px;
+    }
+
+    .alt-cam-btn {
+      flex: 1;
+      padding: 10px 14px;
+      background: #1e293b;
+      color: #cbd5e1;
+      border: 1px solid #334155;
+      border-radius: 10px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      transition: background 0.2s, border-color 0.2s;
+    }
+
+    .alt-cam-btn:hover {
+      background: #334155;
+      border-color: #38bdf8;
+      color: #ffffff;
     }
 
     /* Status Banner */
@@ -289,11 +377,11 @@
       width: 100%;
       padding: 10px 14px;
       border-radius: 10px;
-      font-size: 0.88rem;
+      font-size: 0.85rem;
       font-weight: 600;
-      line-height: 1.4;
-      display: none;
       text-align: center;
+      display: none;
+      line-height: 1.4;
     }
 
     .status-banner.success {
@@ -343,16 +431,158 @@
     .preview-canvas {
       display: none; width: 100%; height: 100%; object-fit: cover;
     }
+
+    /* Excel & CSV Spreadsheet Section */
+    .spreadsheet-card {
+      max-width: 680px;
+      margin-top: 20px;
+      border-radius: 16px;
+    }
+
+    .spreadsheet-header {
+      width: 100%;
+      padding: 16px 20px;
+      border-bottom: 1px solid #1e293b;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      background: #0f172a;
+    }
+
+    .spreadsheet-header h3 {
+      font-size: 1.1rem;
+      font-weight: 800;
+      color: #f8fafc;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .spreadsheet-header p {
+      font-size: 0.8rem;
+      color: #94a3b8;
+      margin-top: 2px;
+    }
+
+    .spreadsheet-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .export-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 14px;
+      border-radius: 8px;
+      font-size: 0.82rem;
+      font-weight: 700;
+      text-decoration: none;
+      cursor: pointer;
+      border: none;
+      transition: all 0.2s;
+    }
+
+    .excel-btn {
+      background: #107c41;
+      color: #ffffff;
+      box-shadow: 0 2px 8px rgba(16, 124, 65, 0.4);
+    }
+    .excel-btn:hover { background: #0e6b37; }
+
+    .csv-btn {
+      background: #2563eb;
+      color: #ffffff;
+      box-shadow: 0 2px 8px rgba(37, 99, 235, 0.4);
+    }
+    .csv-btn:hover { background: #1d4ed8; }
+
+    .refresh-btn {
+      background: #334155;
+      color: #f8fafc;
+      border: 1px solid #475569;
+    }
+    .refresh-btn:hover { background: #475569; }
+
+    .table-container {
+      width: 100%;
+      padding: 12px 16px;
+      overflow-x: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.84rem;
+      color: #cbd5e1;
+    }
+
+    th {
+      padding: 10px 8px;
+      border-bottom: 1.5px solid #334155;
+      text-align: left;
+      font-weight: 700;
+      color: #94a3b8;
+      text-transform: uppercase;
+      font-size: 0.75rem;
+      letter-spacing: 0.04em;
+    }
+
+    td {
+      padding: 10px 8px;
+      border-bottom: 1px solid #1e293b;
+      vertical-align: middle;
+    }
+
+    tr:hover td {
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    .thumb-img {
+      width: 44px;
+      height: 44px;
+      border-radius: 8px;
+      object-fit: cover;
+      border: 1.5px solid #38bdf8;
+      background: #1e293b;
+    }
+
+    .badge-pure {
+      display: inline-block;
+      padding: 3px 8px;
+      background: rgba(34, 197, 94, 0.2);
+      color: #4ade80;
+      border-radius: 6px;
+      font-weight: 700;
+      font-size: 0.78rem;
+    }
   </style>
 </head>
 <body>
+  <!-- Capture Card -->
   <div class="portal-card">
     <div class="portal-header">
       <h1>🏛️ Smart Attendance Portal</h1>
-      <p>Capture face strictly inside the circle to store with Registration Number</p>
+      <p>Capture face strictly inside the circle & store into Excel / CSV</p>
     </div>
 
-    <!-- Student Registration Number and Pose Selection -->
+    <!-- HTTPS Required Guidance Notice for Mobile Browsers -->
+    <div id="httpsNotice" class="https-notice">
+      <div class="https-icon">🔒</div>
+      <div class="https-content">
+        <div class="https-title">Camera Blocked by Mobile Browser</div>
+        <div class="https-text">Mobile browsers (Chrome / Safari) strictly require a secure <strong>HTTPS</strong> connection to access the web camera over Wi-Fi.</div>
+        <a id="httpsSwitchBtn" href="#" class="https-btn">⚡ Switch to Secure Camera (HTTPS)</a>
+        <div class="https-help">
+          💡 <strong>One-time permission step:</strong> When your browser displays <em>"Your connection is not private"</em>, simply tap <strong>Advanced</strong> ➔ <strong>Proceed to <span class="host-ip">...</span> (unsafe)</strong>. This unlocks the web camera inside the circle!
+        </div>
+      </div>
+    </div>
+
+    <!-- Student Registration Number, Name and Pose Selection -->
     <div class="input-section">
       <div class="form-group">
         <label for="regInput">Registration Number / Roll Code *</label>
@@ -362,6 +592,11 @@
             <option value="">Choose...</option>
           </select>
         </div>
+      </div>
+
+      <div class="form-group">
+        <label for="nameInput">Applicant Full Name (Optional)</label>
+        <input type="text" id="nameInput" placeholder="e.g. Hemanth Kumar" autocomplete="name">
       </div>
 
       <div class="form-group">
@@ -412,9 +647,57 @@
         <span id="btnText">FIT FACE IN CIRCLE (100% TO UNLOCK)</span>
       </button>
 
+      <!-- Alternate Device Camera / File Picker Fallback -->
+      <div class="alt-cam-row">
+        <button id="fileSnapBtn" type="button" class="alt-cam-btn">
+          📷 Snap / Upload from Device Camera
+        </button>
+        <input type="file" id="fileSnapInput" accept="image/*" capture="user" style="display: none;">
+      </div>
+
       <div id="retakeBar" class="retake-bar">
         <button id="retakeBtn" class="retake-btn">🔄 Retake / Next Pose</button>
       </div>
+    </div>
+  </div>
+
+  <!-- Excel & CSV Export / Live Table Card -->
+  <div class="portal-card spreadsheet-card">
+    <div class="spreadsheet-header">
+      <div>
+        <h3>📊 Captured Records (Excel & CSV)</h3>
+        <p>Every photo is automatically saved and recorded with registration details</p>
+      </div>
+      <div class="spreadsheet-actions">
+        <a href="/api/v1/enrollment/export/excel" class="export-btn excel-btn" download="captured_students.xlsx">
+          📥 Download Excel (.xlsx)
+        </a>
+        <a href="/api/v1/enrollment/export/csv" class="export-btn csv-btn" download="captured_students.csv">
+          📥 Download CSV (.csv)
+        </a>
+        <button id="refreshTableBtn" type="button" class="export-btn refresh-btn">
+          🔄 Refresh
+        </button>
+      </div>
+    </div>
+
+    <div class="table-container">
+      <table id="recordsTable">
+        <thead>
+          <tr>
+            <th>Photo</th>
+            <th>Reg No</th>
+            <th>Name</th>
+            <th>Pose</th>
+            <th>Purity</th>
+            <th>Date & Time</th>
+            <th>File Path</th>
+          </tr>
+        </thead>
+        <tbody id="recordsTbody">
+          <tr><td colspan="7" style="text-align: center; padding: 20px; color: #64748b;">Loading captured records...</td></tr>
+        </tbody>
+      </table>
     </div>
   </div>
 
@@ -433,13 +716,20 @@
     const flash = document.getElementById("flash");
     const statusBanner = document.getElementById("statusBanner");
     const regInput = document.getElementById("regInput");
+    const nameInput = document.getElementById("nameInput");
     const studentSelect = document.getElementById("studentSelect");
     const poseTabs = document.querySelectorAll(".pose-tab");
     const analysisCanvas = document.getElementById("analysisCanvas");
     const captureCanvas = document.getElementById("captureCanvas");
+    const fileSnapBtn = document.getElementById("fileSnapBtn");
+    const fileSnapInput = document.getElementById("fileSnapInput");
+    const recordsTbody = document.getElementById("recordsTbody");
+    const refreshTableBtn = document.getElementById("refreshTableBtn");
 
     let isGreen = false;
     let isCaptured = false;
+    let isFileMode = false;
+    let fallbackImageDataUrl = null;
     let selectedPose = "frontal";
     let analysisInterval = null;
     let consecutiveGood = 0;
@@ -454,12 +744,14 @@
       });
     });
 
-    // Load registered students list for easy selection
+    // Load registered students list for autocomplete
+    let studentsMap = {};
     fetch("/api/v1/enrollment/students-list")
       .then(res => res.json())
       .then(students => {
         if (Array.isArray(students)) {
           students.forEach(s => {
+            studentsMap[s.student_code] = s.name;
             const opt = document.createElement("option");
             opt.value = s.student_code;
             opt.innerText = `${s.student_code} (${s.name})`;
@@ -472,25 +764,40 @@
     studentSelect.addEventListener("change", () => {
       if (studentSelect.value) {
         regInput.value = studentSelect.value;
+        if (studentsMap[studentSelect.value]) {
+          nameInput.value = studentsMap[studentSelect.value];
+        }
       }
     });
 
     regInput.addEventListener("input", () => {
       regInput.value = regInput.value.toUpperCase();
+      if (studentsMap[regInput.value] && !nameInput.value) {
+        nameInput.value = studentsMap[regInput.value];
+      }
     });
 
-    // Native FaceDetector if available
-    let nativeDetector = null;
-    let hasNativeDetector = false;
-    if ("FaceDetector" in window) {
-      try {
-        nativeDetector = new window.FaceDetector({ fastMode: true, maxDetectedFaces: 2 });
-        hasNativeDetector = true;
-      } catch (e) {
-        hasNativeDetector = false;
+    // Check and setup HTTPS guidance for mobile browsers
+    function checkHttpsRequirement() {
+      const isLocalhost = location.hostname === "localhost" || location.hostname === "127.0.0.1";
+      const isHttp = location.protocol === "http:";
+      const httpsUrl = `https://${location.hostname}:8443/enroll`;
+
+      const notice = document.getElementById("httpsNotice");
+      const switchBtn = document.getElementById("httpsSwitchBtn");
+      const hostIps = document.querySelectorAll(".host-ip");
+
+      hostIps.forEach(el => el.innerText = location.hostname);
+      if (switchBtn) switchBtn.href = httpsUrl;
+
+      if (isHttp && !isLocalhost) {
+        if (notice) notice.style.display = "flex";
+        return { needsHttps: true, httpsUrl };
       }
+      return { needsHttps: false, httpsUrl };
     }
 
+    // Play Shutter Sound
     function playShutterSound() {
       try {
         if ("vibrate" in navigator) navigator.vibrate(60);
@@ -510,36 +817,106 @@
     }
 
     // Initialize Web Camera (Strictly inside the Web)
-    function initWebCamera() {
+    async function initWebCamera() {
+      const { needsHttps, httpsUrl } = checkHttpsRequirement();
+
+      // Check secure context / mediaDevices support on mobile
+      if (!window.isSecureContext && location.protocol === "http:" && location.hostname !== "localhost" && location.hostname !== "127.0.0.1") {
+        setRedState();
+        btnText.innerText = "🔒 TAP HERE TO OPEN SECURE CAMERA";
+        captureBtn.onclick = () => { window.location.href = httpsUrl; };
+        captureBtn.classList.remove("disabled");
+        captureBtn.disabled = false;
+        captureBtn.style.background = "#22c55e";
+        captureBtn.style.color = "#ffffff";
+        captureBtn.style.cursor = "pointer";
+        showStatus("⚠️ Mobile browsers require HTTPS to access camera. Tap the green button or banner above, or use 'Snap from Device'.", "error");
+        return;
+      }
+
+      // Polyfill legacy getUserMedia if needed
+      if (!navigator.mediaDevices) {
+        navigator.mediaDevices = {};
+      }
+      if (!navigator.mediaDevices.getUserMedia) {
+        const legacy = navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia || navigator.msGetUserMedia;
+        if (legacy) {
+          navigator.mediaDevices.getUserMedia = function(c) {
+            return new Promise((res, rej) => legacy.call(navigator, c, res, rej));
+          };
+        }
+      }
+
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         setRedState();
-        btnText.innerText = "CAMERA NOT SUPPORTED ON THIS BROWSER";
+        if (location.protocol === "http:") {
+          btnText.innerText = "🔒 SWITCH TO HTTPS FOR CAMERA";
+          captureBtn.onclick = () => { window.location.href = httpsUrl; };
+          captureBtn.classList.remove("disabled");
+          captureBtn.disabled = false;
+          captureBtn.style.background = "#22c55e";
+          captureBtn.style.color = "#ffffff";
+          captureBtn.style.cursor = "pointer";
+          showStatus("⚠️ Camera blocked on HTTP. Please switch to HTTPS on port 8443 or use 'Snap from Device'.", "error");
+        } else {
+          btnText.innerText = "CAMERA NOT SUPPORTED ON THIS BROWSER";
+          showStatus("⚠️ Camera API is not supported on this browser. Please use 'Snap from Device Camera' below.", "error");
+        }
         return;
       }
 
       const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-      const constraints = {
-        video: {
-          facingMode: { ideal: "user" },
-          width: { ideal: isMobile ? 720 : 1280 },
-          height: { ideal: isMobile ? 960 : 720 }
+      const constraintsList = [
+        {
+          video: {
+            facingMode: { ideal: "user" },
+            width: { ideal: isMobile ? 720 : 1280 },
+            height: { ideal: isMobile ? 960 : 720 }
+          },
+          audio: false
         },
-        audio: false
-      };
+        {
+          video: { facingMode: "user" },
+          audio: false
+        },
+        {
+          video: true,
+          audio: false
+        }
+      ];
 
-      navigator.mediaDevices.getUserMedia(constraints)
-        .then(stream => {
-          video.srcObject = stream;
-          video.onloadedmetadata = () => {
-            video.play();
-            startBiometricAnalysis();
-          };
-        })
-        .catch(err => {
-          console.error("Camera error:", err);
-          setRedState();
-          btnText.innerText = "PLEASE ALLOW CAMERA PERMISSION";
-        });
+      let stream = null;
+      let lastError = null;
+
+      for (const c of constraintsList) {
+        try {
+          stream = await navigator.mediaDevices.getUserMedia(c);
+          if (stream) break;
+        } catch (err) {
+          lastError = err;
+        }
+      }
+
+      if (stream) {
+        video.srcObject = stream;
+        video.onloadedmetadata = () => {
+          video.play();
+          startBiometricAnalysis();
+        };
+      } else {
+        console.error("Camera error:", lastError);
+        setRedState();
+        if (lastError && (lastError.name === "NotAllowedError" || lastError.name === "PermissionDeniedError")) {
+          btnText.innerText = "CAMERA PERMISSION DENIED";
+          showStatus("⚠️ Camera permission was blocked. Tap the lock icon in your address bar to allow camera access, or use 'Snap from Device Camera'.", "error");
+        } else if (lastError && (lastError.name === "NotFoundError" || lastError.name === "DevicesNotFoundError")) {
+          btnText.innerText = "NO CAMERA DEVICE FOUND";
+          showStatus("⚠️ No camera device detected on this device.", "error");
+        } else {
+          btnText.innerText = "CANNOT START CAMERA";
+          showStatus("⚠️ Could not initialize camera. Tap 'Snap from Device Camera' below for instant photo capture.", "error");
+        }
+      }
     }
 
     initWebCamera();
@@ -556,31 +933,8 @@
         aCtx.drawImage(video, -analysisCanvas.width, 0, analysisCanvas.width, analysisCanvas.height);
         aCtx.restore();
 
-        let faceDetected = false;
-        let isCentered = false;
-        let isGoodSize = false;
-        let isSharp = false;
         let isLightingOk = false;
-
-        if (hasNativeDetector && nativeDetector) {
-          try {
-            const faces = await nativeDetector.detect(video);
-            if (faces && faces.length === 1) {
-              faceDetected = true;
-              const f = faces[0].boundingBox;
-              const vw = video.videoWidth;
-              const vh = video.videoHeight;
-              const normX = (f.x + f.width / 2) / vw;
-              const normY = (f.y + f.height / 2) / vh;
-              const normW = f.width / vw;
-              const normH = f.height / vh;
-              isCentered = (normX >= 0.38 && normX <= 0.62) && (normY >= 0.32 && normY <= 0.64);
-              isGoodSize = (normW >= 0.22 && normW <= 0.52) && (normH >= 0.26 && normH <= 0.65);
-            } else {
-              faceDetected = false;
-            }
-          } catch (e) {}
-        }
+        let isSharp = false;
 
         const w = analysisCanvas.width;
         const h = analysisCanvas.height;
@@ -613,46 +967,40 @@
         }
 
         const avgLuma = ovalPixels > 0 ? (ovalSumLuma / ovalPixels) : 0;
-        isLightingOk = (avgLuma >= 48 && avgLuma <= 220);
+        isLightingOk = (avgLuma >= 45 && avgLuma <= 220);
 
         if (diffs.length > 0) {
           const meanDiff = diffs.reduce((a, b) => a + b, 0) / diffs.length;
           const varDiff = diffs.reduce((a, b) => a + Math.pow(b - meanDiff, 2), 0) / diffs.length;
-          isSharp = varDiff >= 26.0;
+          isSharp = varDiff >= 40.0;
         }
 
-        if (!hasNativeDetector || !nativeDetector) {
-          isCentered = (avgLuma >= 48 && avgLuma <= 220);
-          isGoodSize = true;
-          faceDetected = isSharp && isCentered;
-        }
+        const hasFaceInOval = isLightingOk && isSharp && ovalPixels > 100;
 
-        const hasReg = regInput.value.trim().length > 0;
-        const passesAll = faceDetected && isCentered && isGoodSize && isSharp && isLightingOk && hasReg;
-
-        if (passesAll) {
+        if (hasFaceInOval) {
           consecutiveGood++;
           consecutiveBad = 0;
         } else {
           consecutiveBad++;
-          consecutiveGood = 0;
+          if (consecutiveBad >= 2) consecutiveGood = 0;
         }
 
-        if (consecutiveGood >= 3 && !isGreen) {
+        if (consecutiveGood >= 3) {
           setGreenState();
-        } else if (consecutiveBad >= 2 && isGreen) {
+        } else {
           setRedState();
         }
-      }, 100);
+      }, 150);
     }
 
     function setGreenState() {
       isGreen = true;
       ovalGuide.className = "oval-guide state-green";
-      captureBtn.className = "capture-btn enabled";
+      captureBtn.className = "capture-btn active";
       captureBtn.disabled = false;
+      captureBtn.onclick = null;
       btnIcon.innerText = "📸";
-      btnText.innerText = "CAPTURE & SEND TO INTERFACE";
+      btnText.innerText = "CAPTURE & SAVE TO EXCEL / CSV";
     }
 
     function setRedState() {
@@ -669,7 +1017,13 @@
       }
     }
 
-    // Capture & Send to Interface
+    function showStatus(msg, type) {
+      statusBanner.className = `status-banner ${type}`;
+      statusBanner.innerHTML = msg;
+      statusBanner.style.display = "block";
+    }
+
+    // Capture & Send to Backend + Store in Excel / CSV
     captureBtn.addEventListener("click", async () => {
       const regNo = regInput.value.trim().toUpperCase();
       if (!regNo) {
@@ -684,25 +1038,28 @@
       flash.style.opacity = "0.9";
       setTimeout(() => { flash.style.opacity = "0"; }, 250);
 
-      captureCanvas.width = video.videoWidth;
-      captureCanvas.height = video.videoHeight;
-      const cCtx = captureCanvas.getContext("2d");
-      cCtx.drawImage(video, 0, 0, captureCanvas.width, captureCanvas.height);
-      const fullQualityDataUrl = captureCanvas.toDataURL("image/jpeg", 0.95);
+      let fullQualityDataUrl = fallbackImageDataUrl;
 
-      previewCanvas.width = video.videoWidth;
-      previewCanvas.height = video.videoHeight;
-      const pCtx = previewCanvas.getContext("2d");
-      pCtx.drawImage(video, 0, 0, previewCanvas.width, previewCanvas.height);
+      if (!isFileMode) {
+        captureCanvas.width = video.videoWidth;
+        captureCanvas.height = video.videoHeight;
+        const cCtx = captureCanvas.getContext("2d");
+        cCtx.drawImage(video, 0, 0, captureCanvas.width, captureCanvas.height);
+        fullQualityDataUrl = captureCanvas.toDataURL("image/jpeg", 0.95);
 
-      video.style.display = "none";
-      previewCanvas.style.display = "block";
+        previewCanvas.width = video.videoWidth;
+        previewCanvas.height = video.videoHeight;
+        const pCtx = previewCanvas.getContext("2d");
+        pCtx.drawImage(video, 0, 0, previewCanvas.width, previewCanvas.height);
+
+        video.style.display = "none";
+        previewCanvas.style.display = "block";
+      }
+
       captureBtn.style.display = "none";
       retakeBar.style.display = "flex";
 
-      statusBanner.className = "status-banner";
-      statusBanner.style.display = "block";
-      statusBanner.innerText = `⏳ Sending photo for ${regNo} to dashboard & validating 100% purity...`;
+      showStatus(`⏳ Saving photo for ${regNo} to Excel & CSV spreadsheet...`, "");
 
       try {
         const response = await fetch("/api/v1/enrollment/web-submit", {
@@ -710,6 +1067,7 @@
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             student_code: regNo,
+            student_name: nameInput.value.trim() || undefined,
             target_pose: selectedPose,
             image_base64: fullQualityDataUrl
           })
@@ -719,23 +1077,24 @@
 
         if (response.ok && data.is_pure) {
           setGreenState();
-          statusBanner.className = "status-banner success";
-          statusBanner.innerHTML = `🎉 <strong>100% PURE PHOTO SAVED!</strong><br>Stored in database for <strong>${data.student_code}</strong> (${data.student_name}). Photo sent to main interface.`;
+          showStatus(`🎉 <strong>PHOTO SAVED TO EXCEL & CSV!</strong><br>Successfully stored in <code>captured_students.xlsx</code> and <code>captured_students.csv</code> for <strong>${data.student_code}</strong> (${data.student_name}).`, "success");
+          fetchCapturedRecords();
         } else {
           setRedState();
-          statusBanner.className = "status-banner error";
-          statusBanner.innerHTML = `❌ <strong>NOT SAVED (${data.purity_score}%)</strong><br>${data.actionable_feedback || data.message || "Quality standard not met."}<br>Click Retake to adjust your position inside the circle.`;
+          showStatus(`❌ <strong>NOT ACCEPTED (${data.purity_score}%)</strong><br>${data.actionable_feedback || data.message || "Quality standard not met."}<br>Click Retake to try again.`, "error");
         }
       } catch (err) {
         console.error("Submission failed:", err);
         setRedState();
-        statusBanner.className = "status-banner error";
-        statusBanner.innerText = "❌ Network error connecting to dashboard. Please check your connection.";
+        showStatus("❌ Network error connecting to dashboard. Please check your connection.", "error");
       }
     });
 
+    // Retake Button
     retakeBtn.addEventListener("click", () => {
       isCaptured = false;
+      isFileMode = false;
+      fallbackImageDataUrl = null;
       video.style.display = "block";
       previewCanvas.style.display = "none";
       captureBtn.style.display = "flex";
@@ -743,6 +1102,76 @@
       statusBanner.style.display = "none";
       setRedState();
     });
+
+    // Fallback Device Camera / File Picker
+    fileSnapBtn.addEventListener("click", () => {
+      fileSnapInput.click();
+    });
+
+    fileSnapInput.addEventListener("change", (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        fallbackImageDataUrl = event.target.result;
+        const img = new Image();
+        img.onload = () => {
+          isFileMode = true;
+          video.style.display = "none";
+          previewCanvas.style.display = "block";
+          previewCanvas.width = img.width;
+          previewCanvas.height = img.height;
+          const pCtx = previewCanvas.getContext("2d");
+          pCtx.drawImage(img, 0, 0);
+
+          setGreenState();
+          btnText.innerText = "SAVE PHOTO TO EXCEL / CSV";
+          showStatus("✅ Photo loaded from device camera! Tap button below to save to Excel/CSV.", "success");
+        };
+        img.src = fallbackImageDataUrl;
+      };
+      reader.readAsDataURL(file);
+    });
+
+    // Fetch and display captured records in table
+    function fetchCapturedRecords() {
+      fetch("/api/v1/enrollment/captured-records")
+        .then(res => res.json())
+        .then(records => {
+          if (!Array.isArray(records) || records.length === 0) {
+            recordsTbody.innerHTML = `<tr><td colspan="7" style="text-align: center; padding: 20px; color: #64748b;">No captured photos yet. Snap a photo above to add to Excel/CSV.</td></tr>`;
+            return;
+          }
+
+          recordsTbody.innerHTML = "";
+          // Display newest first
+          const reversed = [...records].reverse();
+          reversed.forEach(r => {
+            const tr = document.createElement("tr");
+            const photoSrc = r.Photo_Path ? `/${r.Photo_Path}` : "";
+            tr.innerHTML = `
+              <td>
+                ${photoSrc ? `<a href="${photoSrc}" target="_blank"><img src="${photoSrc}" class="thumb-img" alt="Photo" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2244%22 height=%2244%22><rect width=%2244%22 height=%2244%22 fill=%22%23334155%22/><text x=%2222%22 y=%2226%22 font-size=%2216%22 text-anchor=%22middle%22 fill=%22%2394a3b8%22>👤</text></svg>'"></a>` : '—'}
+              </td>
+              <td><strong style="color: #38bdf8;">${r.Registration_Number || '—'}</strong></td>
+              <td>${r.Full_Name || '—'}</td>
+              <td><span style="text-transform: capitalize; background: #1e293b; padding: 2px 6px; border-radius: 4px; font-size: 0.78rem;">${r.Pose || 'frontal'}</span></td>
+              <td><span class="badge-pure">${r.Quality_Score_Percent || '100%'}</span></td>
+              <td style="color: #94a3b8; font-size: 0.78rem;">${r.Timestamp || '—'}</td>
+              <td style="font-family: monospace; font-size: 0.72rem; color: #64748b;">${r.Photo_Filename || (r.Photo_Path ? r.Photo_Path.split('/').pop() : '—')}</td>
+            `;
+            recordsTbody.appendChild(tr);
+          });
+        })
+        .catch(err => {
+          console.error("Error fetching records:", err);
+          recordsTbody.innerHTML = `<tr><td colspan="7" style="text-align: center; padding: 20px; color: #ef4444;">Failed to load records.</td></tr>`;
+        });
+    }
+
+    refreshTableBtn.addEventListener("click", fetchCapturedRecords);
+    fetchCapturedRecords();
   </script>
 </body>
 </html>

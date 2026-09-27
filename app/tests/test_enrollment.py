@@ -83,3 +83,36 @@ def test_web_enrollment_submit_and_recent_feed(client: TestClient, db_session: S
     list_resp = client.get("/api/v1/enrollment/students-list")
     assert list_resp.status_code == 200
     assert any(s["student_code"] == "TEST_REG_99" for s in list_resp.json())
+
+
+def test_captured_spreadsheet_excel_and_csv(client: TestClient, db_session: Session):
+    """Test that captured photos are recorded in CSV/Excel and exportable."""
+    b64_face = make_test_face_base64()
+    submit_resp = client.post("/api/v1/enrollment/web-submit", json={
+        "student_code": "EXCEL_REG_01",
+        "student_name": "Spreadsheet Applicant",
+        "target_pose": "frontal",
+        "image_base64": b64_face
+    })
+    assert submit_resp.status_code == 200
+    data = submit_resp.json()
+    assert data["csv_stored"] is True
+    assert data["excel_stored"] is True
+
+    # 1. Fetch captured records JSON
+    records_resp = client.get("/api/v1/enrollment/captured-records")
+    assert records_resp.status_code == 200
+    records = records_resp.json()
+    assert any(r["Registration_Number"] == "EXCEL_REG_01" for r in records)
+
+    # 2. Export CSV file
+    csv_resp = client.get("/api/v1/enrollment/export/csv")
+    assert csv_resp.status_code == 200
+    assert "text/csv" in csv_resp.headers.get("content-type", "")
+    assert "EXCEL_REG_01" in csv_resp.text
+
+    # 3. Export Excel (.xlsx) file
+    excel_resp = client.get("/api/v1/enrollment/export/excel")
+    assert excel_resp.status_code == 200
+    assert len(excel_resp.content) > 0
+

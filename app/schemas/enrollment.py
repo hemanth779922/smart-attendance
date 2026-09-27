@@ -39,6 +39,8 @@ class ResetEnrollmentRequest(BaseModel):
 
 class WebEnrollmentSubmitRequest(BaseModel):
     student_code: str
+    student_name: Optional[str] = None
+    department: Optional[str] = "General"
     target_pose: Optional[str] = "frontal"
     image_base64: str
     auto_store: Optional[bool] = True
@@ -55,3 +57,6 @@ class WebEnrollmentSubmitResponse(BaseModel):
     photo_path: Optional[str] = None
     stored_in_db: bool = False
     actionable_feedback: Optional[str] = None
+    csv_stored: bool = True
+    excel_stored: bool = True
+

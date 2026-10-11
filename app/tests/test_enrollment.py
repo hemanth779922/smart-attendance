@@ -116,3 +116,26 @@ def test_captured_spreadsheet_excel_and_csv(client: TestClient, db_session: Sess
     assert excel_resp.status_code == 200
     assert len(excel_resp.content) > 0
 
+
+def test_ip_webcam_and_verify_frame(client: TestClient):
+    """Test IP Webcam connection endpoint and real-time verify-frame endpoint."""
+    # 1. Test IP Webcam test endpoint
+    test_resp = client.get("/api/v1/enrollment/ip-webcam/test?url=http://127.0.0.1:9999")
+    assert test_resp.status_code == 200
+    data = test_resp.json()
+    assert "connected" in data
+    assert data["connected"] is False  # 9999 is closed
+
+    # 2. Test verify-frame endpoint
+    b64_face = make_test_face_base64()
+    verify_resp = client.post("/api/v1/enrollment/verify-frame", json={
+        "image_base64": b64_face,
+        "target_pose": "frontal"
+    })
+    assert verify_resp.status_code == 200
+    vdata = verify_resp.json()
+    assert "status" in vdata
+    assert "guidance_message" in vdata
+    assert "is_in_ring" in vdata
+
+

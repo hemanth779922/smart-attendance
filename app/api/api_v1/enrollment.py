@@ -19,7 +19,9 @@ from app.schemas.enrollment import (
     EnrollmentStatusResponse,
     ResetEnrollmentRequest,
     WebEnrollmentSubmitRequest,
-    WebEnrollmentSubmitResponse
+    WebEnrollmentSubmitResponse,
+    VerifyFrameRequest,
+    IpWebcamCaptureRequest
 )
 import os
 import time
@@ -28,6 +30,13 @@ from app.services.captured_spreadsheet import (
     get_all_captured_records,
     get_csv_file_path,
     get_excel_file_path
+)
+from app.services.ip_webcam_service import (
+    test_ip_webcam_connection,
+    fetch_ip_webcam_frame,
+    evaluate_frame_ring_and_purity,
+    normalize_ip_webcam_url,
+    get_snapshot_url
 )
 from app.ai.low_light import detect_low_light, enhance_low_light, assess_face_quality
 from app.ai.quality_assessment import assess_frame_quality, validate_pure_enrollment_quality
@@ -478,5 +487,211 @@ def export_captured_excel():
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         filename="captured_students.xlsx"
     )
+
+
+@router.get("/ip-webcam/test")
+def test_phone_ip_webcam(url: str):
+    """Tests connection to Phone IP Webcam app."""
+    return test_ip_webcam_connection(url)
+
+
+@router.get("/ip-webcam/live-frame")
+def get_phone_ip_webcam_frame(url: str, pose: str = "frontal"):
+    """
+    Fetches live frame from Phone IP Webcam, evaluates circle alignment & clarity,
+    and returns evaluation results and a lightweight preview image.
+    """
+    frame = fetch_ip_webcam_frame(url)
+    if frame is None:
+        return {
+            "connected": False,
+            "status": "red",
+            "guidance_message": "CANNOT CONNECT TO PHONE IP WEBCAM. Make sure IP Webcam 'Start server' is on.",
+            "frame_data_url": None,
+            "is_pure": False,
+            "is_in_ring": False,
+            "is_clear": False,
+            "purity_score": 0.0
+        }
+
+    eval_res = evaluate_frame_ring_and_purity(frame, target_pose=pose)
+
+    # Encode lightweight thumbnail
+    h, w = frame.shape[:2]
+    scale = min(1.0, 480.0 / max(w, h))
+    preview_frame = cv2.resize(frame, (int(w * scale), int(h * scale))) if scale < 1.0 else frame
+    _, buf = cv2.imencode(".jpg", preview_frame, [int(cv2.IMWRITE_JPEG_QUALITY), 75])
+    data_url = "data:image/jpeg;base64," + base64.b64encode(buf).decode("utf-8")
+
+    return {
+        "connected": True,
+        **eval_res,
+        "frame_data_url": data_url
+    }
+
+
+@router.post("/ip-webcam/capture", response_model=WebEnrollmentSubmitResponse)
+def capture_from_phone_ip_webcam(
+    req: IpWebcamCaptureRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Captures full-resolution crystal-clear photo from Phone IP Webcam,
+    verifies 100% pure biometric standards & circle alignment, saves to disk,
+    and logs to Excel (.xlsx) and CSV (.csv).
+    """
+    student_code = req.student_code.strip().upper()
+    if not student_code:
+        raise HTTPException(status_code=400, detail="Registration number is required.")
+
+    frame = fetch_ip_webcam_frame(req.ip_url)
+    if frame is None:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Could not connect to Phone IP Webcam at {req.ip_url}. Check Wi-Fi connection."
+        )
+
+    target_pose = (req.target_pose or "frontal").lower()
+    eval_res = evaluate_frame_ring_and_purity(frame, target_pose=target_pose)
+
+    student = db.query(Student).filter(Student.student_code == student_code).first()
+    if not student:
+        student = Student(
+            student_code=student_code,
+            name=req.student_name.strip() if req.student_name and req.student_name.strip() else f"Student {student_code}",
+            email=f"{student_code.lower()}@college.edu",
+            department=req.department.strip() if req.department and req.department.strip() else "Computer Science",
+            year=1,
+            is_active=True
+        )
+        db.add(student)
+        db.commit()
+        db.refresh(student)
+    elif req.student_name and req.student_name.strip() and student.name.startswith("Student "):
+        student.name = req.student_name.strip()
+        db.commit()
+
+    # Save photo to persistent disk
+    storage_dir = os.path.join(os.getcwd(), "storage", "enrollments", student_code)
+    os.makedirs(storage_dir, exist_ok=True)
+    filename = f"{student_code}_phone_{target_pose}_{int(time.time())}.jpg"
+    abs_photo_path = os.path.join(storage_dir, filename)
+    cv2.imwrite(abs_photo_path, frame)
+    rel_photo_path = os.path.join("storage", "enrollments", student_code, filename)
+
+    p_score = eval_res["purity_score"]
+    is_pure = eval_res["is_pure"]
+    feedback = eval_res["guidance_message"]
+
+    # Log to Excel & CSV
+    record_captured_photo(
+        reg_number=student_code,
+        full_name=student.name,
+        department=student.department or "General",
+        pose=target_pose,
+        quality_score=p_score,
+        photo_filename=filename,
+        photo_path=rel_photo_path,
+        status="STORED" if is_pure else "REJECTED"
+    )
+
+    submission_entry = {
+        "student_code": student_code,
+        "student_name": student.name,
+        "target_pose": target_pose,
+        "purity_score": p_score,
+        "is_pure": is_pure,
+        "photo_path": rel_photo_path,
+        "stored_in_db": False,
+        "timestamp": int(time.time()),
+        "actionable_feedback": feedback
+    }
+
+    if not is_pure:
+        RECENT_WEB_SUBMISSIONS.append(submission_entry)
+        return WebEnrollmentSubmitResponse(
+            status="rejected",
+            is_pure=False,
+            purity_score=p_score,
+            message=feedback,
+            student_code=student_code,
+            student_name=student.name,
+            target_pose=target_pose,
+            photo_path=rel_photo_path,
+            stored_in_db=False,
+            actionable_feedback=feedback,
+            csv_stored=True,
+            excel_stored=True
+        )
+
+    # Check duplicate identity
+    faces = detect_faces(frame)
+    if faces:
+        face = faces[0]
+        aligned = align_face(face["face_crop"], face.get("landmarks"))
+        new_vec = generate_face_embedding(aligned)
+        dup = search_similar_face(new_vec, db, threshold=0.85)
+
+        if dup and dup["recognized"] and dup["student_id"] != student.id:
+            conflict_msg = f"Duplicate identity match with student {dup['student_name']} ({dup['student_code']})."
+            submission_entry["actionable_feedback"] = conflict_msg
+            RECENT_WEB_SUBMISSIONS.append(submission_entry)
+            return WebEnrollmentSubmitResponse(
+                status="conflict",
+                is_pure=False,
+                purity_score=p_score,
+                message=conflict_msg,
+                student_code=student_code,
+                student_name=student.name,
+                target_pose=target_pose,
+                photo_path=rel_photo_path,
+                stored_in_db=False,
+                actionable_feedback=conflict_msg,
+                csv_stored=True,
+                excel_stored=True
+            )
+
+        # Store embedding in database
+        new_fe = FaceEmbedding(
+            student_id=student.id,
+            pose=target_pose,
+            quality_score=p_score,
+            photo_path=rel_photo_path,
+            is_active=True
+        )
+        new_fe.set_embedding(new_vec)
+        db.add(new_fe)
+        db.commit()
+        db.refresh(new_fe)
+
+    submission_entry["stored_in_db"] = True
+    RECENT_WEB_SUBMISSIONS.append(submission_entry)
+
+    return WebEnrollmentSubmitResponse(
+        status="success",
+        is_pure=True,
+        purity_score=p_score,
+        message=f"100% Pure HD photo captured from Phone IP Webcam for {student_code}!",
+        student_code=student_code,
+        student_name=student.name,
+        target_pose=target_pose,
+        photo_path=rel_photo_path,
+        stored_in_db=True,
+        actionable_feedback=feedback,
+        csv_stored=True,
+        excel_stored=True
+    )
+
+
+@router.post("/verify-frame")
+def verify_camera_frame(req: VerifyFrameRequest):
+    """
+    Real-time backend frame verification for circle alignment & clarity.
+    Enforces that circle ONLY turns green when face is in the ring and clear.
+    """
+    frame = decode_base64_image(req.image_base64)
+    target_pose = (req.target_pose or "frontal").lower()
+    return evaluate_frame_ring_and_purity(frame, target_pose=target_pose)
+
 
 

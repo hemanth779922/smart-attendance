@@ -787,50 +787,100 @@ elif menu_choice == "👤 Smart Face Enrollment":
                 help="Capture varied facial angles to achieve high recognition accuracy."
             )
 
-            st.markdown("##### 🏛️ Gate Biometric Viewfinder (Align in Oval)")
-            last_purity_key = f"last_purity_{selected_student_id}"
-            last_eval_ts_key = f"last_eval_ts_{selected_student_id}"
-            purity_feedback = st.session_state.get(last_purity_key)
-            purity_clean = None
-            if purity_feedback and isinstance(purity_feedback, dict):
-                purity_clean = {
-                    "is_pure": bool(purity_feedback.get("is_pure", False)),
-                    "purity_score": float(purity_feedback.get("purity_score", 0.0))
-                }
-
-            gate_payload = enrollment_camera_gate(
-                target_pose=target_pose,
-                purity_result=purity_clean,
-                key=f"gate_oval_{selected_student_id}"
+            cam_source = st.radio(
+                "Camera Source",
+                ["📱 Phone IP Webcam (Recommended for HD Clarity)", "💻 Laptop / USB Camera"],
+                horizontal=True
             )
 
             frame_bgr = None
-            if gate_payload and isinstance(gate_payload, dict):
-                action = gate_payload.get("action")
-                if action == "reset":
-                    st.session_state.pop(last_purity_key, None)
-                    st.session_state.pop(last_eval_ts_key, None)
-                    purity_feedback = None
-                elif gate_payload.get("image_data"):
-                    img_ts = gate_payload.get("timestamp")
-                    if img_ts and img_ts != st.session_state.get(last_eval_ts_key):
-                        frame_bgr = decode_base64_to_cv2(gate_payload["image_data"])
-                        if frame_bgr is not None:
-                            faces = detect_faces(frame_bgr)
-                            strict_liveness = (target_pose != "any")
-                            pure_val = validate_pure_enrollment_quality(
-                                frame=frame_bgr,
-                                detected_faces=faces,
-                                target_pose=target_pose,
-                                strict_liveness=strict_liveness
-                            )
-                            st.session_state[last_purity_key] = pure_val
-                            st.session_state[last_eval_ts_key] = img_ts
-                            st.rerun()
-                    else:
-                        frame_bgr = decode_base64_to_cv2(gate_payload["image_data"])
+            last_purity_key = f"last_purity_{selected_student_id}"
+            last_eval_ts_key = f"last_eval_ts_{selected_student_id}"
 
+            from app.services.ip_webcam_service import (
+                test_ip_webcam_connection,
+                fetch_ip_webcam_frame,
+                evaluate_frame_ring_and_purity
+            )
 
+            if cam_source == "📱 Phone IP Webcam (Recommended for HD Clarity)":
+                st.info("📱 **Phone IP Webcam**: Start the 'IP Webcam' app on your Android phone, tap 'Start server' at the bottom, and enter the IP below.")
+                phone_ip = st.text_input(
+                    "Phone IP Webcam URL",
+                    value=st.session_state.get("phone_ip_url", "http://192.168.1.5:8080"),
+                    placeholder="e.g. http://192.168.1.5:8080"
+                )
+                st.session_state["phone_ip_url"] = phone_ip
+
+                col_ip1, col_ip2 = st.columns([1, 1.2])
+                with col_ip1:
+                    if st.button("⚡ Test Connection", use_container_width=True):
+                        conn_res = test_ip_webcam_connection(phone_ip)
+                        if conn_res["connected"]:
+                            st.success(f"Connected: {conn_res['message']}")
+                        else:
+                            st.error(conn_res["message"])
+
+                with col_ip2:
+                    if st.button("📸 Capture HD Photo from Phone", type="primary", use_container_width=True):
+                        raw_frame = fetch_ip_webcam_frame(phone_ip)
+                        if raw_frame is not None:
+                            frame_bgr = raw_frame
+                            eval_res = evaluate_frame_ring_and_purity(frame_bgr, target_pose=target_pose)
+                            st.session_state[last_purity_key] = eval_res
+                            st.session_state[last_eval_ts_key] = time.time()
+                        else:
+                            st.error(f"Could not connect to {phone_ip}. Make sure IP Webcam 'Start server' is on.")
+
+                # If we have a captured frame from phone
+                if frame_bgr is not None:
+                    # Draw visual vertical ring on displayed preview
+                    disp_img = frame_bgr.copy()
+                    dh, dw = disp_img.shape[:2]
+                    ring_color = (34, 197, 94) if st.session_state.get(last_purity_key, {}).get("is_pure") else (0, 0, 239)
+                    cv2.ellipse(disp_img, (int(dw*0.50), int(dh*0.48)), (int(dw*0.17), int(dh*0.30)), 0, 0, 360, ring_color, 4)
+                    st.image(cv2.cvtColor(disp_img, cv2.COLOR_BGR2RGB), caption=f"Phone Camera ({dw}x{dh})", use_container_width=True)
+
+            else:
+                st.markdown("##### 🏛️ Gate Biometric Viewfinder (Align in Oval)")
+                purity_feedback = st.session_state.get(last_purity_key)
+                purity_clean = None
+                if purity_feedback and isinstance(purity_feedback, dict):
+                    purity_clean = {
+                        "is_pure": bool(purity_feedback.get("is_pure", False)),
+                        "purity_score": float(purity_feedback.get("purity_score", 0.0))
+                    }
+
+                gate_payload = enrollment_camera_gate(
+                    target_pose=target_pose,
+                    purity_result=purity_clean,
+                    key=f"gate_oval_{selected_student_id}"
+                )
+
+                if gate_payload and isinstance(gate_payload, dict):
+                    action = gate_payload.get("action")
+                    if action == "reset":
+                        st.session_state.pop(last_purity_key, None)
+                        st.session_state.pop(last_eval_ts_key, None)
+                        purity_feedback = None
+                    elif gate_payload.get("image_data"):
+                        img_ts = gate_payload.get("timestamp")
+                        if img_ts and img_ts != st.session_state.get(last_eval_ts_key):
+                            frame_bgr = decode_base64_to_cv2(gate_payload["image_data"])
+                            if frame_bgr is not None:
+                                faces = detect_faces(frame_bgr)
+                                strict_liveness = (target_pose != "any")
+                                pure_val = validate_pure_enrollment_quality(
+                                    frame=frame_bgr,
+                                    detected_faces=faces,
+                                    target_pose=target_pose,
+                                    strict_liveness=strict_liveness
+                                )
+                                st.session_state[last_purity_key] = pure_val
+                                st.session_state[last_eval_ts_key] = img_ts
+                                st.rerun()
+                        else:
+                            frame_bgr = decode_base64_to_cv2(gate_payload["image_data"])
 
             if frame_bgr is not None:
                 faces = detect_faces(frame_bgr)
@@ -891,18 +941,41 @@ elif menu_choice == "👤 Smart Face Enrollment":
                             st.error(f"🚫 Conflict Detected! This face strongly matches enrolled student: {dup_name} ({dup_code}). Sample was NOT stored.")
                             st.session_state[save_flag_key] = "conflict"
                         else:
+                            # Save high-res photo to disk
+                            s_obj = db.query(Student).filter(Student.id == selected_student_id).first()
+                            s_code = s_obj.student_code if s_obj else f"STD{selected_student_id}"
+                            s_dir = os.path.join(os.getcwd(), "storage", "enrollments", s_code)
+                            os.makedirs(s_dir, exist_ok=True)
+                            p_fname = f"{s_code}_{pure_val['detected_pose']}_{int(time.time())}.jpg"
+                            p_abs = os.path.join(s_dir, p_fname)
+                            cv2.imwrite(p_abs, frame_bgr)
+                            p_rel = os.path.join("storage", "enrollments", s_code, p_fname)
+
+                            from app.services.captured_spreadsheet import record_captured_photo
+                            record_captured_photo(
+                                reg_number=s_code,
+                                full_name=s_obj.name if s_obj else "Student",
+                                department=s_obj.department if s_obj else "General",
+                                pose=pure_val["detected_pose"],
+                                quality_score=pure_val["purity_score"],
+                                photo_filename=p_fname,
+                                photo_path=p_rel,
+                                status="STORED"
+                            )
+
                             # Automatically save embedding to database
                             new_fe = FaceEmbedding(
                                 student_id=selected_student_id,
                                 pose=pure_val["detected_pose"],
                                 quality_score=pure_val["purity_score"],
+                                photo_path=p_rel,
                                 is_active=True
                             )
                             new_fe.set_embedding(new_vec)
                             db.add(new_fe)
                             db.commit()
                             st.session_state[save_flag_key] = True
-                            st.toast(f"✅ 100% Pure '{target_pose.upper()}' biometric sample automatically saved to database!", icon="💾")
+                            st.toast(f"✅ 100% Pure '{target_pose.upper()}' photo saved to disk, Excel, CSV, and database!", icon="💾")
 
                     if st.session_state.get(save_flag_key) is True:
                         st.success(f"🎉 **AUTOMATICALLY STORED IN DATABASE!** 100% Pure '{target_pose.upper()}' biometric sample committed for {selected_student_str}.")

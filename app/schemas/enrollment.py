@@ -60,3 +60,17 @@ class WebEnrollmentSubmitResponse(BaseModel):
     csv_stored: bool = True
     excel_stored: bool = True
 
+
+class VerifyFrameRequest(BaseModel):
+    image_base64: str
+    target_pose: Optional[str] = "frontal"
+
+
+class IpWebcamCaptureRequest(BaseModel):
+    ip_url: str
+    student_code: str
+    student_name: Optional[str] = None
+    department: Optional[str] = "General"
+    target_pose: Optional[str] = "frontal"
+
+

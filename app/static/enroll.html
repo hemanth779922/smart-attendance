@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Smart Attendance - Student Face Capture & Excel/CSV Portal</title>
+  <title>Smart Attendance - Phone IP Webcam & Biometric Capture Portal</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
     body {
@@ -14,13 +14,13 @@
       flex-direction: column;
       align-items: center;
       justify-content: flex-start;
-      padding: 16px 12px 40px;
+      padding: 16px 12px 50px;
       touch-action: manipulation;
     }
 
     .portal-card {
       width: 100%;
-      max-width: 490px;
+      max-width: 520px;
       background: #131b2e;
       border: 1px solid #1e293b;
       border-radius: 20px;
@@ -34,7 +34,7 @@
     /* Header */
     .portal-header {
       width: 100%;
-      padding: 18px 20px 14px;
+      padding: 16px 20px 14px;
       text-align: center;
       background: linear-gradient(180deg, #1e293b 0%, #131b2e 100%);
       border-bottom: 1px solid #1e293b;
@@ -56,65 +56,98 @@
       margin-top: 4px;
     }
 
-    /* HTTPS Guidance for Mobile Web Browsers */
-    .https-notice {
-      margin: 12px 18px 0;
-      padding: 14px 16px;
-      background: linear-gradient(135deg, rgba(239, 68, 68, 0.18) 0%, rgba(185, 28, 28, 0.28) 100%);
-      border: 1.5px solid #ef4444;
-      border-radius: 12px;
-      color: #fecaca;
-      display: none;
-      gap: 12px;
-      align-items: flex-start;
+    /* Camera Mode Selection Switcher */
+    .cam-mode-bar {
+      width: 100%;
+      padding: 10px 18px;
+      background: #0b1120;
+      border-bottom: 1px solid #1e293b;
+      display: flex;
+      gap: 8px;
     }
-    .https-icon {
-      font-size: 1.6rem;
-      line-height: 1;
-    }
-    .https-content {
+
+    .cam-mode-btn {
       flex: 1;
+      padding: 10px 8px;
+      background: #1e293b;
+      color: #94a3b8;
+      border: 1.5px solid #334155;
+      border-radius: 10px;
+      font-size: 0.82rem;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      transition: all 0.2s;
+    }
+
+    .cam-mode-btn.active {
+      background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
+      color: #ffffff;
+      border-color: #38bdf8;
+      box-shadow: 0 2px 10px rgba(56, 189, 248, 0.35);
+    }
+
+    /* IP Webcam Settings Box */
+    .ip-config-panel {
+      width: 100%;
+      padding: 12px 18px;
+      background: #0f172a;
+      border-bottom: 1px solid #1e293b;
       display: flex;
       flex-direction: column;
-      gap: 6px;
+      gap: 8px;
     }
-    .https-title {
-      font-weight: 800;
-      font-size: 0.95rem;
+
+    .ip-input-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .ip-input {
+      flex: 1;
+      background: #1e293b;
+      color: #f8fafc;
+      border: 1.5px solid #334155;
+      border-radius: 10px;
+      padding: 9px 12px;
+      font-size: 0.88rem;
+      font-weight: 600;
+      outline: none;
+    }
+
+    .ip-input:focus {
+      border-color: #38bdf8;
+    }
+
+    .ip-connect-btn {
+      padding: 9px 16px;
+      background: #0284c7;
       color: #ffffff;
-    }
-    .https-text {
+      border: none;
+      border-radius: 10px;
       font-size: 0.84rem;
-      line-height: 1.4;
-      color: #fca5a5;
-    }
-    .https-btn {
-      display: inline-block;
-      margin-top: 4px;
-      padding: 10px 16px;
-      background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
-      color: #ffffff;
-      text-decoration: none;
       font-weight: 700;
-      font-size: 0.92rem;
-      border-radius: 9px;
-      text-align: center;
-      box-shadow: 0 4px 14px rgba(34, 197, 94, 0.4);
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background 0.2s;
     }
-    .https-help {
-      font-size: 0.78rem;
-      color: #cbd5e1;
+
+    .ip-connect-btn:hover { background: #0369a1; }
+
+    .ip-help-text {
+      font-size: 0.76rem;
+      color: #94a3b8;
       line-height: 1.35;
-      margin-top: 4px;
-      padding: 6px 10px;
-      background: rgba(15, 23, 42, 0.6);
-      border-radius: 6px;
     }
 
     /* Registration Input Section */
     .input-section {
       width: 100%;
-      padding: 14px 18px 10px;
+      padding: 12px 18px 10px;
       display: flex;
       flex-direction: column;
       gap: 10px;
@@ -147,8 +180,8 @@
       color: #f8fafc;
       border: 1.5px solid #334155;
       border-radius: 10px;
-      padding: 10px 12px;
-      font-size: 0.92rem;
+      padding: 9px 12px;
+      font-size: 0.9rem;
       font-weight: 600;
       outline: none;
       transition: border-color 0.2s;
@@ -169,12 +202,12 @@
     .pose-tab {
       flex: 1;
       text-align: center;
-      padding: 8px 6px;
+      padding: 7px 6px;
       background: #1e293b;
       color: #94a3b8;
       border: 1px solid #334155;
       border-radius: 8px;
-      font-size: 0.8rem;
+      font-size: 0.78rem;
       font-weight: 700;
       cursor: pointer;
       user-select: none;
@@ -189,12 +222,12 @@
       box-shadow: 0 2px 10px rgba(56, 189, 248, 0.3);
     }
 
-    /* Live Web Camera Viewport */
+    /* Live Camera Viewport */
     .viewport {
       position: relative;
       width: 100%;
       aspect-ratio: 4 / 3;
-      max-height: 390px;
+      max-height: 400px;
       background: #020617;
       overflow: hidden;
       display: flex;
@@ -205,16 +238,17 @@
     @media (max-width: 480px) {
       .viewport {
         aspect-ratio: 3 / 4;
-        max-height: 370px;
+        max-height: 380px;
       }
     }
 
-    video {
+    video, .stream-img {
       width: 100%;
       height: 100%;
       object-fit: cover;
-      transform: scaleX(-1);
     }
+
+    video { transform: scaleX(-1); }
 
     /* Vignette Mask around Oval */
     .vignette-mask {
@@ -233,8 +267,8 @@
       top: 48%;
       left: 50%;
       transform: translate(-50%, -50%);
-      width: 175px;
-      height: 245px;
+      width: 180px;
+      height: 250px;
       border-radius: 50% / 50%;
       pointer-events: none;
       z-index: 10;
@@ -243,27 +277,27 @@
 
     @media (max-width: 420px) {
       .oval-guide {
-        width: 155px;
-        height: 220px;
+        width: 160px;
+        height: 230px;
       }
     }
 
     /* State 1: Red / Pending / Unaligned / Below 100% */
     .oval-guide.state-red {
-      border: 3.5px dashed #ef4444;
-      box-shadow: 0 0 25px rgba(239, 68, 68, 0.6), inset 0 0 18px rgba(239, 68, 68, 0.25);
+      border: 4px dashed #ef4444;
+      box-shadow: 0 0 25px rgba(239, 68, 68, 0.65), inset 0 0 20px rgba(239, 68, 68, 0.3);
       animation: pulseRed 1.8s infinite ease-in-out;
     }
 
     @keyframes pulseRed {
       0%, 100% { border-color: #ef4444; box-shadow: 0 0 18px rgba(239, 68, 68, 0.5); }
-      50% { border-color: #f87171; box-shadow: 0 0 32px rgba(248, 113, 113, 0.85); }
+      50% { border-color: #f87171; box-shadow: 0 0 32px rgba(248, 113, 113, 0.9); }
     }
 
     /* State 2: Green / 100% Pure & Clear */
     .oval-guide.state-green {
       border: 4.5px solid #22c55e;
-      box-shadow: 0 0 35px rgba(34, 197, 94, 0.85), inset 0 0 25px rgba(34, 197, 94, 0.35);
+      box-shadow: 0 0 38px rgba(34, 197, 94, 0.9), inset 0 0 25px rgba(34, 197, 94, 0.35);
       animation: pulseGreen 1.4s infinite ease-in-out;
     }
 
@@ -285,7 +319,40 @@
     }
 
     .state-red .oval-crosshair { color: #fca5a5; opacity: 0.45; }
-    .state-green .oval-crosshair { color: #86efac; opacity: 0.75; }
+    .state-green .oval-crosshair { color: #86efac; opacity: 0.85; }
+
+    /* Real-Time Live Guidance Banner */
+    .guidance-bar {
+      position: absolute;
+      bottom: 12px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 90%;
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-size: 0.82rem;
+      font-weight: 700;
+      text-align: center;
+      z-index: 15;
+      pointer-events: none;
+      backdrop-filter: blur(6px);
+      transition: all 0.2s;
+    }
+
+    .guidance-bar.red {
+      background: rgba(220, 38, 38, 0.85);
+      color: #ffffff;
+      border: 1px solid #ef4444;
+      box-shadow: 0 4px 14px rgba(220, 38, 38, 0.4);
+    }
+
+    .guidance-bar.green {
+      background: rgba(22, 163, 74, 0.9);
+      color: #ffffff;
+      border: 1.5px solid #22c55e;
+      box-shadow: 0 4px 20px rgba(34, 197, 94, 0.6);
+      animation: buttonBounce 1.5s infinite;
+    }
 
     /* Controls Panel */
     .controls-panel {
@@ -301,11 +368,11 @@
     /* Web Capture Button */
     .capture-btn {
       width: 100%;
-      min-height: 52px;
+      min-height: 54px;
       padding: 14px 20px;
       border: none;
       border-radius: 14px;
-      font-size: 1rem;
+      font-size: 0.98rem;
       font-weight: 800;
       letter-spacing: 0.04em;
       display: flex;
@@ -328,7 +395,7 @@
     .capture-btn.active {
       background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
       color: #ffffff;
-      box-shadow: 0 0 28px rgba(34, 197, 94, 0.65), 0 4px 12px rgba(0, 0, 0, 0.4);
+      box-shadow: 0 0 28px rgba(34, 197, 94, 0.7), 0 4px 12px rgba(0, 0, 0, 0.4);
       transform: scale(1.02);
       animation: buttonBounce 1.5s infinite;
     }
@@ -338,39 +405,7 @@
       50% { transform: scale(1.04); }
     }
 
-    .capture-btn.active:active {
-      transform: scale(0.97);
-    }
-
-    /* Alternate Device Camera Button */
-    .alt-cam-row {
-      width: 100%;
-      display: flex;
-      gap: 8px;
-    }
-
-    .alt-cam-btn {
-      flex: 1;
-      padding: 10px 14px;
-      background: #1e293b;
-      color: #cbd5e1;
-      border: 1px solid #334155;
-      border-radius: 10px;
-      font-size: 0.85rem;
-      font-weight: 600;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 6px;
-      transition: background 0.2s, border-color 0.2s;
-    }
-
-    .alt-cam-btn:hover {
-      background: #334155;
-      border-color: #38bdf8;
-      color: #ffffff;
-    }
+    .capture-btn.active:active { transform: scale(0.97); }
 
     /* Status Banner */
     .status-banner {
@@ -418,8 +453,6 @@
       cursor: pointer;
       transition: background 0.2s;
     }
-
-    .retake-btn:active { background: #64748b; }
 
     .camera-flash {
       position: absolute;
@@ -537,9 +570,7 @@
       vertical-align: middle;
     }
 
-    tr:hover td {
-      background: rgba(255, 255, 255, 0.02);
-    }
+    tr:hover td { background: rgba(255, 255, 255, 0.02); }
 
     .thumb-img {
       width: 44px;
@@ -566,19 +597,27 @@
   <div class="portal-card">
     <div class="portal-header">
       <h1>🏛️ Smart Attendance Portal</h1>
-      <p>Capture face strictly inside the circle & store into Excel / CSV</p>
+      <p>Crystal-Clear Face Capture via Phone IP Webcam & Excel/CSV Storage</p>
     </div>
 
-    <!-- HTTPS Required Guidance Notice for Mobile Browsers -->
-    <div id="httpsNotice" class="https-notice">
-      <div class="https-icon">🔒</div>
-      <div class="https-content">
-        <div class="https-title">Camera Blocked by Mobile Browser</div>
-        <div class="https-text">Mobile browsers (Chrome / Safari) strictly require a secure <strong>HTTPS</strong> connection to access the web camera over Wi-Fi.</div>
-        <a id="httpsSwitchBtn" href="#" class="https-btn">⚡ Switch to Secure Camera (HTTPS)</a>
-        <div class="https-help">
-          💡 <strong>One-time permission step:</strong> When your browser displays <em>"Your connection is not private"</em>, simply tap <strong>Advanced</strong> ➔ <strong>Proceed to <span class="host-ip">...</span> (unsafe)</strong>. This unlocks the web camera inside the circle!
-        </div>
+    <!-- Camera Source Tabs -->
+    <div class="cam-mode-bar">
+      <button id="modeIpBtn" type="button" class="cam-mode-btn active">
+        📱 Phone IP Webcam (HD Clarity)
+      </button>
+      <button id="modeWebcamBtn" type="button" class="cam-mode-btn">
+        💻 Built-in / Laptop Webcam
+      </button>
+    </div>
+
+    <!-- Phone IP Webcam Configuration -->
+    <div id="ipConfigPanel" class="ip-config-panel">
+      <div class="ip-input-row">
+        <input type="text" id="ipUrlInput" class="ip-input" placeholder="e.g. http://192.168.1.5:8080" value="http://192.168.1.5:8080">
+        <button id="ipConnectBtn" type="button" class="ip-connect-btn">⚡ Connect Phone</button>
+      </div>
+      <div class="ip-help-text">
+        💡 <strong>How to connect:</strong> Open <em>"IP Webcam"</em> app on your Android phone, tap <strong>"Start server"</strong> at the bottom, and enter the IP displayed on your phone above.
       </div>
     </div>
 
@@ -610,9 +649,10 @@
       </div>
     </div>
 
-    <!-- Live Web Camera Viewport -->
+    <!-- Live Camera Viewport -->
     <div class="viewport">
-      <video id="webcam" playsinline webkit-playsinline autoplay muted></video>
+      <img id="streamImg" class="stream-img" style="display: block;" alt="Phone Camera Stream">
+      <video id="webcam" playsinline webkit-playsinline autoplay muted style="display: none;"></video>
       <canvas id="previewCanvas" class="preview-canvas"></canvas>
       <div id="flash" class="camera-flash"></div>
 
@@ -621,7 +661,7 @@
         <defs>
           <mask id="ovalHoleMask">
             <rect width="600" height="450" fill="white" />
-            <ellipse cx="300" cy="216" rx="88" ry="122" fill="black" />
+            <ellipse cx="300" cy="216" rx="90" ry="125" fill="black" />
           </mask>
         </defs>
         <rect width="600" height="450" fill="rgba(10, 15, 29, 0.72)" mask="url(#ovalHoleMask)" />
@@ -629,12 +669,17 @@
 
       <!-- The Vertical Circle/Oval Guide -->
       <div id="ovalGuide" class="oval-guide state-red">
-        <svg class="oval-crosshair" viewBox="0 0 175 245">
-          <line x1="25" y1="92" x2="150" y2="92" stroke="currentColor" stroke-dasharray="3 3" stroke-width="1.5" />
-          <line x1="87.5" y1="20" x2="87.5" y2="225" stroke="currentColor" stroke-dasharray="3 3" stroke-width="1.5" />
-          <circle cx="62" cy="92" r="3.5" fill="currentColor" opacity="0.8" />
-          <circle cx="113" cy="92" r="3.5" fill="currentColor" opacity="0.8" />
+        <svg class="oval-crosshair" viewBox="0 0 180 250">
+          <line x1="25" y1="95" x2="155" y2="95" stroke="currentColor" stroke-dasharray="3 3" stroke-width="1.5" />
+          <line x1="90" y1="20" x2="90" y2="230" stroke="currentColor" stroke-dasharray="3 3" stroke-width="1.5" />
+          <circle cx="64" cy="95" r="3.5" fill="currentColor" opacity="0.8" />
+          <circle cx="116" cy="95" r="3.5" fill="currentColor" opacity="0.8" />
         </svg>
+      </div>
+
+      <!-- Real-Time Live AI Guidance Banner -->
+      <div id="guidanceBar" class="guidance-bar red">
+        CONNECT PHONE IP WEBCAM OR FIT FACE IN CIRCLE
       </div>
     </div>
 
@@ -644,16 +689,8 @@
 
       <button id="captureBtn" class="capture-btn disabled" disabled>
         <span id="btnIcon">🔒</span>
-        <span id="btnText">FIT FACE IN CIRCLE (100% TO UNLOCK)</span>
+        <span id="btnText">FACE MUST BE IN CIRCLE & CLEAR TO UNLOCK</span>
       </button>
-
-      <!-- Alternate Device Camera / File Picker Fallback -->
-      <div class="alt-cam-row">
-        <button id="fileSnapBtn" type="button" class="alt-cam-btn">
-          📷 Snap / Upload from Device Camera
-        </button>
-        <input type="file" id="fileSnapInput" accept="image/*" capture="user" style="display: none;">
-      </div>
 
       <div id="retakeBar" class="retake-bar">
         <button id="retakeBtn" class="retake-btn">🔄 Retake / Next Pose</button>
@@ -701,13 +738,21 @@
     </div>
   </div>
 
-  <canvas id="analysisCanvas" width="240" height="180" style="display:none;"></canvas>
+  <canvas id="analysisCanvas" width="320" height="240" style="display:none;"></canvas>
   <canvas id="captureCanvas" style="display:none;"></canvas>
 
   <script>
+    // DOM Elements
+    const modeIpBtn = document.getElementById("modeIpBtn");
+    const modeWebcamBtn = document.getElementById("modeWebcamBtn");
+    const ipConfigPanel = document.getElementById("ipConfigPanel");
+    const ipUrlInput = document.getElementById("ipUrlInput");
+    const ipConnectBtn = document.getElementById("ipConnectBtn");
+    const streamImg = document.getElementById("streamImg");
     const video = document.getElementById("webcam");
     const previewCanvas = document.getElementById("previewCanvas");
     const ovalGuide = document.getElementById("ovalGuide");
+    const guidanceBar = document.getElementById("guidanceBar");
     const captureBtn = document.getElementById("captureBtn");
     const btnIcon = document.getElementById("btnIcon");
     const btnText = document.getElementById("btnText");
@@ -721,19 +766,49 @@
     const poseTabs = document.querySelectorAll(".pose-tab");
     const analysisCanvas = document.getElementById("analysisCanvas");
     const captureCanvas = document.getElementById("captureCanvas");
-    const fileSnapBtn = document.getElementById("fileSnapBtn");
-    const fileSnapInput = document.getElementById("fileSnapInput");
     const recordsTbody = document.getElementById("recordsTbody");
     const refreshTableBtn = document.getElementById("refreshTableBtn");
 
+    // State Variables
+    let currentMode = "ip"; // "ip" or "webcam"
+    let isConnected = false;
     let isGreen = false;
     let isCaptured = false;
-    let isFileMode = false;
-    let fallbackImageDataUrl = null;
     let selectedPose = "frontal";
-    let analysisInterval = null;
-    let consecutiveGood = 0;
-    let consecutiveBad = 0;
+    let pollInterval = null;
+    let webStream = null;
+    let lastEvaluatedTs = 0;
+
+    // Restore saved IP from localStorage
+    const savedIp = localStorage.getItem("last_ip_webcam_url");
+    if (savedIp) ipUrlInput.value = savedIp;
+
+    // Mode Switching
+    modeIpBtn.addEventListener("click", () => {
+      currentMode = "ip";
+      modeIpBtn.classList.add("active");
+      modeWebcamBtn.classList.remove("active");
+      ipConfigPanel.style.display = "flex";
+      video.style.display = "none";
+      streamImg.style.display = "block";
+      if (webStream) {
+        webStream.getTracks().forEach(t => t.stop());
+        webStream = null;
+      }
+      setRedState("CONNECT PHONE IP WEBCAM OR FIT FACE IN CIRCLE");
+      startIpPolling();
+    });
+
+    modeWebcamBtn.addEventListener("click", () => {
+      currentMode = "webcam";
+      modeWebcamBtn.classList.add("active");
+      modeIpBtn.classList.remove("active");
+      ipConfigPanel.style.display = "none";
+      streamImg.style.display = "none";
+      video.style.display = "block";
+      stopIpPolling();
+      initBrowserCamera();
+    });
 
     // Pose Tab Selection
     poseTabs.forEach(tab => {
@@ -744,7 +819,7 @@
       });
     });
 
-    // Load registered students list for autocomplete
+    // Load registered students list
     let studentsMap = {};
     fetch("/api/v1/enrollment/students-list")
       .then(res => res.json())
@@ -759,7 +834,7 @@
           });
         }
       })
-      .catch(err => console.log("Student list fetch:", err));
+      .catch(err => console.log("Student list:", err));
 
     studentSelect.addEventListener("change", () => {
       if (studentSelect.value) {
@@ -777,27 +852,7 @@
       }
     });
 
-    // Check and setup HTTPS guidance for mobile browsers
-    function checkHttpsRequirement() {
-      const isLocalhost = location.hostname === "localhost" || location.hostname === "127.0.0.1";
-      const isHttp = location.protocol === "http:";
-      const httpsUrl = `https://${location.hostname}:8443/enroll`;
-
-      const notice = document.getElementById("httpsNotice");
-      const switchBtn = document.getElementById("httpsSwitchBtn");
-      const hostIps = document.querySelectorAll(".host-ip");
-
-      hostIps.forEach(el => el.innerText = location.hostname);
-      if (switchBtn) switchBtn.href = httpsUrl;
-
-      if (isHttp && !isLocalhost) {
-        if (notice) notice.style.display = "flex";
-        return { needsHttps: true, httpsUrl };
-      }
-      return { needsHttps: false, httpsUrl };
-    }
-
-    // Play Shutter Sound
+    // Audio Feedback
     function playShutterSound() {
       try {
         if ("vibrate" in navigator) navigator.vibrate(60);
@@ -816,196 +871,22 @@
       } catch(e) {}
     }
 
-    // Initialize Web Camera (Strictly inside the Web)
-    async function initWebCamera() {
-      const { needsHttps, httpsUrl } = checkHttpsRequirement();
-
-      // Check secure context / mediaDevices support on mobile
-      if (!window.isSecureContext && location.protocol === "http:" && location.hostname !== "localhost" && location.hostname !== "127.0.0.1") {
-        setRedState();
-        btnText.innerText = "🔒 TAP HERE TO OPEN SECURE CAMERA";
-        captureBtn.onclick = () => { window.location.href = httpsUrl; };
-        captureBtn.classList.remove("disabled");
-        captureBtn.disabled = false;
-        captureBtn.style.background = "#22c55e";
-        captureBtn.style.color = "#ffffff";
-        captureBtn.style.cursor = "pointer";
-        showStatus("⚠️ Mobile browsers require HTTPS to access camera. Tap the green button or banner above, or use 'Snap from Device'.", "error");
-        return;
-      }
-
-      // Polyfill legacy getUserMedia if needed
-      if (!navigator.mediaDevices) {
-        navigator.mediaDevices = {};
-      }
-      if (!navigator.mediaDevices.getUserMedia) {
-        const legacy = navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia || navigator.msGetUserMedia;
-        if (legacy) {
-          navigator.mediaDevices.getUserMedia = function(c) {
-            return new Promise((res, rej) => legacy.call(navigator, c, res, rej));
-          };
-        }
-      }
-
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        setRedState();
-        if (location.protocol === "http:") {
-          btnText.innerText = "🔒 SWITCH TO HTTPS FOR CAMERA";
-          captureBtn.onclick = () => { window.location.href = httpsUrl; };
-          captureBtn.classList.remove("disabled");
-          captureBtn.disabled = false;
-          captureBtn.style.background = "#22c55e";
-          captureBtn.style.color = "#ffffff";
-          captureBtn.style.cursor = "pointer";
-          showStatus("⚠️ Camera blocked on HTTP. Please switch to HTTPS on port 8443 or use 'Snap from Device'.", "error");
-        } else {
-          btnText.innerText = "CAMERA NOT SUPPORTED ON THIS BROWSER";
-          showStatus("⚠️ Camera API is not supported on this browser. Please use 'Snap from Device Camera' below.", "error");
-        }
-        return;
-      }
-
-      const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-      const constraintsList = [
-        {
-          video: {
-            facingMode: { ideal: "user" },
-            width: { ideal: isMobile ? 720 : 1280 },
-            height: { ideal: isMobile ? 960 : 720 }
-          },
-          audio: false
-        },
-        {
-          video: { facingMode: "user" },
-          audio: false
-        },
-        {
-          video: true,
-          audio: false
-        }
-      ];
-
-      let stream = null;
-      let lastError = null;
-
-      for (const c of constraintsList) {
-        try {
-          stream = await navigator.mediaDevices.getUserMedia(c);
-          if (stream) break;
-        } catch (err) {
-          lastError = err;
-        }
-      }
-
-      if (stream) {
-        video.srcObject = stream;
-        video.onloadedmetadata = () => {
-          video.play();
-          startBiometricAnalysis();
-        };
-      } else {
-        console.error("Camera error:", lastError);
-        setRedState();
-        if (lastError && (lastError.name === "NotAllowedError" || lastError.name === "PermissionDeniedError")) {
-          btnText.innerText = "CAMERA PERMISSION DENIED";
-          showStatus("⚠️ Camera permission was blocked. Tap the lock icon in your address bar to allow camera access, or use 'Snap from Device Camera'.", "error");
-        } else if (lastError && (lastError.name === "NotFoundError" || lastError.name === "DevicesNotFoundError")) {
-          btnText.innerText = "NO CAMERA DEVICE FOUND";
-          showStatus("⚠️ No camera device detected on this device.", "error");
-        } else {
-          btnText.innerText = "CANNOT START CAMERA";
-          showStatus("⚠️ Could not initialize camera. Tap 'Snap from Device Camera' below for instant photo capture.", "error");
-        }
-      }
-    }
-
-    initWebCamera();
-
-    // Biometric Analysis: Strictly inside the Circle
-    function startBiometricAnalysis() {
-      const aCtx = analysisCanvas.getContext("2d", { willReadFrequently: true });
-
-      analysisInterval = setInterval(async () => {
-        if (isCaptured || video.paused || video.ended || video.readyState < 2) return;
-
-        aCtx.save();
-        aCtx.scale(-1, 1);
-        aCtx.drawImage(video, -analysisCanvas.width, 0, analysisCanvas.width, analysisCanvas.height);
-        aCtx.restore();
-
-        let isLightingOk = false;
-        let isSharp = false;
-
-        const w = analysisCanvas.width;
-        const h = analysisCanvas.height;
-        const imgData = aCtx.getImageData(0, 0, w, h);
-        const data = imgData.data;
-
-        const cx = w / 2;
-        const cy = Math.round(h * 0.48);
-        const rx = 36;
-        const ry = 49;
-
-        let ovalSumLuma = 0;
-        let ovalPixels = 0;
-        let prevLuma = null;
-        let diffs = [];
-
-        for (let y = cy - ry; y <= cy + ry; y += 2) {
-          for (let x = cx - rx; x <= cx + rx; x += 2) {
-            const dx = (x - cx) / rx;
-            const dy = (y - cy) / ry;
-            if (dx * dx + dy * dy <= 1.0) {
-              const idx = (Math.floor(y) * w + Math.floor(x)) * 4;
-              const luma = 0.299 * data[idx] + 0.587 * data[idx + 1] + 0.114 * data[idx + 2];
-              ovalSumLuma += luma;
-              ovalPixels++;
-              if (prevLuma !== null) diffs.push(Math.abs(luma - prevLuma));
-              prevLuma = luma;
-            }
-          }
-        }
-
-        const avgLuma = ovalPixels > 0 ? (ovalSumLuma / ovalPixels) : 0;
-        isLightingOk = (avgLuma >= 45 && avgLuma <= 220);
-
-        if (diffs.length > 0) {
-          const meanDiff = diffs.reduce((a, b) => a + b, 0) / diffs.length;
-          const varDiff = diffs.reduce((a, b) => a + Math.pow(b - meanDiff, 2), 0) / diffs.length;
-          isSharp = varDiff >= 40.0;
-        }
-
-        const hasFaceInOval = isLightingOk && isSharp && ovalPixels > 100;
-
-        if (hasFaceInOval) {
-          consecutiveGood++;
-          consecutiveBad = 0;
-        } else {
-          consecutiveBad++;
-          if (consecutiveBad >= 2) consecutiveGood = 0;
-        }
-
-        if (consecutiveGood >= 3) {
-          setGreenState();
-        } else {
-          setRedState();
-        }
-      }, 150);
-    }
-
-    function setGreenState() {
+    function setGreenState(msg) {
       isGreen = true;
       ovalGuide.className = "oval-guide state-green";
+      guidanceBar.className = "guidance-bar green";
+      guidanceBar.innerText = msg || "✓ 100% CLEAR IN CIRCLE - READY TO CAPTURE!";
       captureBtn.className = "capture-btn active";
       captureBtn.disabled = false;
-      captureBtn.onclick = null;
       btnIcon.innerText = "📸";
-      btnText.innerText = "CAPTURE & SAVE TO EXCEL / CSV";
+      btnText.innerText = "CAPTURE HD PHOTO & SAVE TO EXCEL / CSV";
     }
 
-    function setRedState() {
+    function setRedState(msg) {
       isGreen = false;
       ovalGuide.className = "oval-guide state-red";
+      guidanceBar.className = "guidance-bar red";
+      guidanceBar.innerText = msg || "KEEP YOUR FACE INSIDE THE CIRCLE";
       captureBtn.className = "capture-btn disabled";
       captureBtn.disabled = true;
       btnIcon.innerText = "🔒";
@@ -1013,7 +894,7 @@
       if (!hasReg) {
         btnText.innerText = "ENTER REGISTRATION NUMBER FIRST";
       } else {
-        btnText.innerText = "FIT FACE IN CIRCLE (100% TO UNLOCK)";
+        btnText.innerText = "FACE MUST BE IN CIRCLE & CLEAR TO UNLOCK";
       }
     }
 
@@ -1023,7 +904,135 @@
       statusBanner.style.display = "block";
     }
 
-    // Capture & Send to Backend + Store in Excel / CSV
+    // IP WEBCAM STREAMING & AI ANALYSIS
+    ipConnectBtn.addEventListener("click", () => {
+      const url = ipUrlInput.value.trim();
+      if (!url) {
+        alert("Please enter the Phone IP Webcam URL!");
+        return;
+      }
+      localStorage.setItem("last_ip_webcam_url", url);
+      ipConnectBtn.innerText = "Testing...";
+      fetch(`/api/v1/enrollment/ip-webcam/test?url=${encodeURIComponent(url)}`)
+        .then(r => r.json())
+        .then(res => {
+          ipConnectBtn.innerText = "⚡ Connect Phone";
+          if (res.connected) {
+            isConnected = true;
+            showStatus(`✅ ${res.message}`, "success");
+            startIpPolling();
+          } else {
+            isConnected = false;
+            showStatus(`❌ ${res.message}`, "error");
+          }
+        })
+        .catch(err => {
+          ipConnectBtn.innerText = "⚡ Connect Phone";
+          showStatus("❌ Connection error. Ensure phone and computer are on the same Wi-Fi.", "error");
+        });
+    });
+
+    let isFetchingIpFrame = false;
+    function pollIpFrame() {
+      if (isCaptured || currentMode !== "ip" || isFetchingIpFrame) return;
+      const url = ipUrlInput.value.trim();
+      if (!url) return;
+
+      isFetchingIpFrame = true;
+      fetch(`/api/v1/enrollment/ip-webcam/live-frame?url=${encodeURIComponent(url)}&pose=${selectedPose}`)
+        .then(r => r.json())
+        .then(data => {
+          isFetchingIpFrame = false;
+          if (isCaptured) return;
+          if (data.frame_data_url) {
+            streamImg.src = data.frame_data_url;
+          }
+
+          if (data.status === "green" && data.is_pure) {
+            setGreenState(data.guidance_message);
+          } else {
+            setRedState(data.guidance_message);
+          }
+        })
+        .catch(err => {
+          isFetchingIpFrame = false;
+        });
+    }
+
+    function startIpPolling() {
+      stopIpPolling();
+      pollIpFrame();
+      pollInterval = setInterval(pollIpFrame, 220);
+    }
+
+    function stopIpPolling() {
+      if (pollInterval) {
+        clearInterval(pollInterval);
+        pollInterval = null;
+      }
+    }
+
+    // Auto-start IP Webcam polling on page load
+    startIpPolling();
+
+    // BROWSER WEBCAM & BACKEND FRAME VERIFICATION
+    let isVerifyingBrowserFrame = false;
+    async function initBrowserCamera() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: "user" }, width: { ideal: 1280 }, height: { ideal: 720 } },
+          audio: false
+        });
+        webStream = stream;
+        video.srcObject = stream;
+        video.onloadedmetadata = () => {
+          video.play();
+          startBrowserVerification();
+        };
+      } catch (err) {
+        console.error("Camera error:", err);
+        setRedState("CANNOT ACCESS BROWSER WEBCAM. Check permissions or switch to Phone IP Webcam.");
+      }
+    }
+
+    function startBrowserVerification() {
+      const aCtx = analysisCanvas.getContext("2d");
+      pollInterval = setInterval(() => {
+        if (isCaptured || currentMode !== "webcam" || video.paused || video.ended || isVerifyingBrowserFrame) return;
+
+        aCtx.save();
+        aCtx.scale(-1, 1);
+        aCtx.drawImage(video, -analysisCanvas.width, 0, analysisCanvas.width, analysisCanvas.height);
+        aCtx.restore();
+
+        const smallDataUrl = analysisCanvas.toDataURL("image/jpeg", 0.75);
+        isVerifyingBrowserFrame = true;
+
+        fetch("/api/v1/enrollment/verify-frame", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            image_base64: smallDataUrl,
+            target_pose: selectedPose
+          })
+        })
+        .then(r => r.json())
+        .then(data => {
+          isVerifyingBrowserFrame = false;
+          if (isCaptured) return;
+          if (data.status === "green" && data.is_pure) {
+            setGreenState(data.guidance_message);
+          } else {
+            setRedState(data.guidance_message);
+          }
+        })
+        .catch(() => {
+          isVerifyingBrowserFrame = false;
+        });
+      }, 250);
+    }
+
+    // CAPTURE & SAVE TO EXCEL / CSV
     captureBtn.addEventListener("click", async () => {
       const regNo = regInput.value.trim().toUpperCase();
       if (!regNo) {
@@ -1038,14 +1047,45 @@
       flash.style.opacity = "0.9";
       setTimeout(() => { flash.style.opacity = "0"; }, 250);
 
-      let fullQualityDataUrl = fallbackImageDataUrl;
+      captureBtn.style.display = "none";
+      retakeBar.style.display = "flex";
 
-      if (!isFileMode) {
+      showStatus(`⏳ Capturing crystal-clear photo for ${regNo} & saving to Excel/CSV...`, "");
+
+      if (currentMode === "ip") {
+        const ipUrl = ipUrlInput.value.trim();
+        try {
+          const resp = await fetch("/api/v1/enrollment/ip-webcam/capture", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              ip_url: ipUrl,
+              student_code: regNo,
+              student_name: nameInput.value.trim() || undefined,
+              target_pose: selectedPose
+            })
+          });
+
+          const data = await resp.json();
+          if (resp.ok && data.is_pure) {
+            setGreenState(data.message);
+            showStatus(`🎉 <strong>100% PURE HD PHOTO SAVED!</strong><br>Successfully saved in <code>captured_students.xlsx</code> and <code>captured_students.csv</code> for <strong>${data.student_code}</strong> (${data.student_name}).`, "success");
+            fetchCapturedRecords();
+          } else {
+            setRedState(data.actionable_feedback || data.message || "Quality not met");
+            showStatus(`❌ <strong>NOT SAVED</strong><br>${data.actionable_feedback || data.message || "Quality standard not met."}<br>Click Retake to try again.`, "error");
+          }
+        } catch (err) {
+          setRedState("Network error during capture");
+          showStatus("❌ Network error connecting to phone. Please check your connection.", "error");
+        }
+      } else {
+        // Built-in webcam capture
         captureCanvas.width = video.videoWidth;
         captureCanvas.height = video.videoHeight;
         const cCtx = captureCanvas.getContext("2d");
         cCtx.drawImage(video, 0, 0, captureCanvas.width, captureCanvas.height);
-        fullQualityDataUrl = captureCanvas.toDataURL("image/jpeg", 0.95);
+        const fullDataUrl = captureCanvas.toDataURL("image/jpeg", 0.95);
 
         previewCanvas.width = video.videoWidth;
         previewCanvas.height = video.videoHeight;
@@ -1054,87 +1094,52 @@
 
         video.style.display = "none";
         previewCanvas.style.display = "block";
-      }
 
-      captureBtn.style.display = "none";
-      retakeBar.style.display = "flex";
+        try {
+          const resp = await fetch("/api/v1/enrollment/web-submit", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              student_code: regNo,
+              student_name: nameInput.value.trim() || undefined,
+              target_pose: selectedPose,
+              image_base64: fullDataUrl
+            })
+          });
 
-      showStatus(`⏳ Saving photo for ${regNo} to Excel & CSV spreadsheet...`, "");
-
-      try {
-        const response = await fetch("/api/v1/enrollment/web-submit", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            student_code: regNo,
-            student_name: nameInput.value.trim() || undefined,
-            target_pose: selectedPose,
-            image_base64: fullQualityDataUrl
-          })
-        });
-
-        const data = await response.json();
-
-        if (response.ok && data.is_pure) {
-          setGreenState();
-          showStatus(`🎉 <strong>PHOTO SAVED TO EXCEL & CSV!</strong><br>Successfully stored in <code>captured_students.xlsx</code> and <code>captured_students.csv</code> for <strong>${data.student_code}</strong> (${data.student_name}).`, "success");
-          fetchCapturedRecords();
-        } else {
-          setRedState();
-          showStatus(`❌ <strong>NOT ACCEPTED (${data.purity_score}%)</strong><br>${data.actionable_feedback || data.message || "Quality standard not met."}<br>Click Retake to try again.`, "error");
+          const data = await resp.json();
+          if (resp.ok && data.is_pure) {
+            setGreenState(data.message);
+            showStatus(`🎉 <strong>PHOTO SAVED TO EXCEL & CSV!</strong><br>Saved for <strong>${data.student_code}</strong> (${data.student_name}).`, "success");
+            fetchCapturedRecords();
+          } else {
+            setRedState(data.actionable_feedback || data.message);
+            showStatus(`❌ <strong>NOT SAVED</strong><br>${data.actionable_feedback || data.message}<br>Click Retake to adjust position.`, "error");
+          }
+        } catch (err) {
+          setRedState("Network error");
+          showStatus("❌ Network error. Please check your connection.", "error");
         }
-      } catch (err) {
-        console.error("Submission failed:", err);
-        setRedState();
-        showStatus("❌ Network error connecting to dashboard. Please check your connection.", "error");
       }
     });
 
     // Retake Button
     retakeBtn.addEventListener("click", () => {
       isCaptured = false;
-      isFileMode = false;
-      fallbackImageDataUrl = null;
-      video.style.display = "block";
-      previewCanvas.style.display = "none";
       captureBtn.style.display = "flex";
       retakeBar.style.display = "none";
       statusBanner.style.display = "none";
+
+      if (currentMode === "webcam") {
+        video.style.display = "block";
+        previewCanvas.style.display = "none";
+      }
+
       setRedState();
+      if (currentMode === "ip") startIpPolling();
     });
 
-    // Fallback Device Camera / File Picker
-    fileSnapBtn.addEventListener("click", () => {
-      fileSnapInput.click();
-    });
-
-    fileSnapInput.addEventListener("change", (e) => {
-      const file = e.target.files[0];
-      if (!file) return;
-
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        fallbackImageDataUrl = event.target.result;
-        const img = new Image();
-        img.onload = () => {
-          isFileMode = true;
-          video.style.display = "none";
-          previewCanvas.style.display = "block";
-          previewCanvas.width = img.width;
-          previewCanvas.height = img.height;
-          const pCtx = previewCanvas.getContext("2d");
-          pCtx.drawImage(img, 0, 0);
-
-          setGreenState();
-          btnText.innerText = "SAVE PHOTO TO EXCEL / CSV";
-          showStatus("✅ Photo loaded from device camera! Tap button below to save to Excel/CSV.", "success");
-        };
-        img.src = fallbackImageDataUrl;
-      };
-      reader.readAsDataURL(file);
-    });
-
-    // Fetch and display captured records in table
+    // Fetch and display captured records in spreadsheet table
     function fetchCapturedRecords() {
       fetch("/api/v1/enrollment/captured-records")
         .then(res => res.json())
@@ -1145,7 +1150,6 @@
           }
 
           recordsTbody.innerHTML = "";
-          // Display newest first
           const reversed = [...records].reverse();
           reversed.forEach(r => {
             const tr = document.createElement("tr");

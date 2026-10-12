@@ -807,8 +807,8 @@ elif menu_choice == "👤 Smart Face Enrollment":
                 st.info("📱 **Phone IP Webcam**: Start the 'IP Webcam' app on your Android phone, tap 'Start server' at the bottom, and enter the IP below.")
                 phone_ip = st.text_input(
                     "Phone IP Webcam URL",
-                    value=st.session_state.get("phone_ip_url", "http://192.168.1.5:8080"),
-                    placeholder="e.g. http://192.168.1.5:8080"
+                    value=st.session_state.get("phone_ip_url", "http://10.10.222.239:8080"),
+                    placeholder="e.g. http://10.10.222.239:8080"
                 )
                 st.session_state["phone_ip_url"] = phone_ip
 

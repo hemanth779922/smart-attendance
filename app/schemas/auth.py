@@ -1,6 +1,12 @@
-﻿from typing import Optional
-from pydantic import BaseModel, EmailStr
+from typing import Optional
+from pydantic import BaseModel
 from app.models.user import UserRole
+
+try:
+    import email_validator  # noqa: F401
+    from pydantic import EmailStr
+except ImportError:
+    EmailStr = str
 
 
 class Token(BaseModel):

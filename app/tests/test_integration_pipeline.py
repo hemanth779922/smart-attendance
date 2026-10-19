@@ -1,4 +1,4 @@
-﻿import base64
+import base64
 from datetime import date
 from typing import Tuple
 import cv2
@@ -91,3 +91,38 @@ def test_complete_attendance_pipeline(client: TestClient, admin_token: str, db_s
     assert dup_resp.status_code == 200
     dup_res = dup_resp.json()
     assert dup_res["status"] == "ALREADY_MARKED"
+
+
+def test_ip_webcam_attendance(client: TestClient, admin_token: str, db_session: Session, monkeypatch):
+    """Verify phone IP webcam attendance connection and mark endpoint."""
+    # 1. Test test endpoint
+    test_res = client.get("/api/v1/attendance/ip-webcam/test?url=http://127.0.0.1:9999")
+    assert test_res.status_code == 200
+    assert test_res.json()["connected"] is False
+
+    # 2. Test mark endpoint with mock phone frame
+    face_img, _ = make_synthetic_face()
+    from app.api.api_v1 import attendance as att_module
+    monkeypatch.setattr(att_module, "fetch_ip_webcam_frame", lambda url: face_img)
+
+    subject = Subject(
+        code="CS101",
+        name="Intro to Programming",
+        department="CS",
+        semester=1,
+        is_active=True
+    )
+    db_session.add(subject)
+    db_session.commit()
+
+    mark_resp = client.post(
+        "/api/v1/attendance/ip-webcam/mark",
+        json={"subject_id": subject.id, "ip_url": "http://192.168.1.5:8080"},
+        headers={"Authorization": f"Bearer {admin_token}"}
+    )
+
+    assert mark_resp.status_code == 200
+    res_data = mark_resp.json()
+    assert "status" in res_data
+    assert "message" in res_data
+

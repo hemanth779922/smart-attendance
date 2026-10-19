@@ -1,4 +1,4 @@
-﻿const API_BASE_URL = "http://localhost:8000/api/v1";
+const API_BASE_URL = "http://localhost:8000/api/v1";
 
 export const getAuthToken = () => localStorage.getItem("access_token");
 export const getRefreshToken = () => localStorage.getItem("refresh_token");
@@ -94,6 +94,8 @@ export const api = {
   // Attendance
   getChallenge: () => apiRequest("/attendance/challenge"),
   markAttendance: (data) => apiRequest("/attendance/mark", { method: "POST", body: JSON.stringify(data) }),
+  markAttendanceIPWebcam: (data) => apiRequest("/attendance/ip-webcam/mark", { method: "POST", body: JSON.stringify(data) }),
+  testIPWebcam: (url) => apiRequest(`/attendance/ip-webcam/test?url=${encodeURIComponent(url)}`),
   getTodayAttendance: (params = {}) => {
     const q = new URLSearchParams(params).toString();
     return apiRequest(`/attendance/today${q ? "?" + q : ""}`);

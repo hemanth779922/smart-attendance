@@ -1,4 +1,4 @@
-﻿import enum
+import enum
 from datetime import datetime, date, time
 from typing import Optional, List
 from pydantic import BaseModel
@@ -67,3 +67,9 @@ class MarkAttendanceRequest(BaseModel):
     image_base64: str
     challenge_token: Optional[str] = None
     challenge_action: Optional[str] = None
+
+
+class MarkAttendanceIPWebcamRequest(BaseModel):
+    subject_id: int
+    ip_url: str = "http://192.168.1.5:8080"
+

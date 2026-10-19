@@ -222,6 +222,10 @@ elif menu_choice == "📸 Take Attendance (Kiosk)":
         # Initialize session state for live scanner
         if "live_kiosk_active" not in st.session_state:
             st.session_state.live_kiosk_active = False
+        if "live_ip_kiosk_active" not in st.session_state:
+            st.session_state.live_ip_kiosk_active = False
+        if "phone_ip_url" not in st.session_state:
+            st.session_state.phone_ip_url = "http://192.168.1.5:8080"
         if "live_recent_logs" not in st.session_state:
             st.session_state.live_recent_logs = []
         if "live_cooldown" not in st.session_state:
@@ -238,17 +242,259 @@ elif menu_choice == "📸 Take Attendance (Kiosk)":
             capture_mode = st.radio(
                 "Mode",
                 [
+                    "📱 Phone IP Webcam (HD Stream - Recommended)",
                     "🔴 Live Hands-Free Auto-Attendance (Browser Webcam)",
                     "💻 Hardware Local Webcam (OpenCV Direct Loop)",
                     "📸 Manual Snapshot (Single Photo)"
                 ],
+                index=0,
                 horizontal=False
             )
 
         # ----------------------------------------------------------------------
-        # MODE 1: LIVE HANDS-FREE AUTO-ATTENDANCE (BROWSER WEBCAM - WORKS ANYWHERE)
+        # MODE 1: PHONE IP WEBCAM (HD CONTINUOUS STREAM & AUTO-ATTENDANCE)
         # ----------------------------------------------------------------------
-        if capture_mode == "🔴 Live Hands-Free Auto-Attendance (Browser Webcam)":
+        if capture_mode == "📱 Phone IP Webcam (HD Stream - Recommended)":
+            st.markdown("""
+            <div style="background: rgba(34, 197, 94, 0.08); border-left: 4px solid #22c55e; padding: 12px 18px; border-radius: 8px; margin-bottom: 14px;">
+                <span style="font-size: 1.05rem; font-weight: 700; color: #22c55e;">📱 Phone IP Webcam (HD Camera Active)</span>
+                <p style="margin: 4px 0 0 0; color: #cbd5e1; font-size: 0.9rem;">
+                    Capturing high-resolution video directly from your phone camera for maximum clarity, low-light robustness, and accurate 7-stage biometric verification.
+                </p>
+            </div>
+            """, unsafe_allow_html=True)
+
+            from app.services.ip_webcam_service import (
+                get_video_stream_url,
+                test_ip_webcam_connection,
+                fetch_ip_webcam_frame
+            )
+
+            c_url, c_test, c_ctrl1, c_ctrl2 = st.columns([1.8, 0.8, 1.0, 0.8])
+            with c_url:
+                phone_ip_url = st.text_input(
+                    "Phone IP Webcam URL",
+                    value=st.session_state.get("phone_ip_url", "http://192.168.1.5:8080"),
+                    placeholder="http://192.168.1.5:8080",
+                    help="Start 'IP Webcam' app on phone, tap 'Start server' at bottom, and enter the displayed address.",
+                    key="phone_ip_input_kiosk"
+                )
+                st.session_state["phone_ip_url"] = phone_ip_url
+
+            with c_test:
+                st.write("")
+                st.write("")
+                if st.button("⚡ Test", use_container_width=True, key="test_phone_ip_btn"):
+                    t_res = test_ip_webcam_connection(phone_ip_url)
+                    if t_res["connected"]:
+                        st.success("✅ Online & Streaming")
+                    else:
+                        st.error("❌ Offline")
+
+            with c_ctrl1:
+                st.write("")
+                st.write("")
+                if not st.session_state.get("live_ip_kiosk_active", False):
+                    if st.button("🟢 Start Scanner", type="primary", use_container_width=True, key="start_ip_scanner"):
+                        st.session_state.live_ip_kiosk_active = True
+                        st.rerun()
+                else:
+                    if st.button("⏹️ Stop Scanner", type="secondary", use_container_width=True, key="stop_ip_scanner"):
+                        st.session_state.live_ip_kiosk_active = False
+                        st.rerun()
+
+            with c_ctrl2:
+                st.write("")
+                st.write("")
+                if st.button("🗑️ Reset", use_container_width=True, key="reset_logs_ip"):
+                    st.session_state.live_recent_logs = []
+                    st.session_state.live_cooldown = {}
+                    st.rerun()
+
+            col_video, col_feed = st.columns([1.5, 1])
+
+            with col_video:
+                video_spot = st.empty()
+                status_banner = st.empty()
+
+            with col_feed:
+                st.markdown("### 📋 Live Check-in Feed")
+                table_spot = st.empty()
+                if st.session_state.live_recent_logs:
+                    table_spot.dataframe(pd.DataFrame(st.session_state.live_recent_logs), use_container_width=True)
+                else:
+                    table_spot.info("Waiting for students to step in front of phone camera...")
+
+            if st.session_state.get("live_ip_kiosk_active", False):
+                stream_url = get_video_stream_url(phone_ip_url)
+                cap = cv2.VideoCapture(stream_url)
+                if not cap.isOpened():
+                    st.error(f"❌ Could not open phone stream at {stream_url}. Make sure 'IP Webcam' app on phone has 'Start server' enabled and phone is connected to the same Wi-Fi.")
+                    st.session_state.live_ip_kiosk_active = False
+                    st.stop()
+
+                status_banner.success(f"🟢 **Phone Camera Connected!** Scanning faces via `{phone_ip_url}`...")
+                last_detection_ts = 0.0
+                cached_detections = []
+                last_marked_alert_until = 0.0
+                last_marked_name = ""
+
+                try:
+                    while st.session_state.get("live_ip_kiosk_active", False):
+                        ret, frame = cap.read()
+                        if not ret:
+                            # Attempt snapshot fetch fallback
+                            frame = fetch_ip_webcam_frame(phone_ip_url)
+                            if frame is None:
+                                time.sleep(0.08)
+                                continue
+
+                        h, w = frame.shape[:2]
+                        now_ts = time.time()
+                        disp_frame = frame.copy()
+
+                        # Run detection every ~0.26s for responsive FPS & accurate matching
+                        if (now_ts - last_detection_ts) > 0.26:
+                            last_detection_ts = now_ts
+                            cached_detections = []
+
+                            is_low, _ = detect_low_light(frame)
+                            proc_frame, _ = enhance_low_light(frame) if is_low else (frame, {})
+                            faces = detect_faces(proc_frame, apply_low_light_check=False)
+
+                            for face in faces:
+                                bx, by, bw, bh = face["bbox"]
+                                fcrop = face["face_crop"]
+                                landmarks = face.get("landmarks")
+
+                                spoof_res = verify_anti_spoofing(face_crop=fcrop)
+                                if not spoof_res["is_live"] or spoof_res["spoof_score"] > settings.SPOOF_THRESHOLD:
+                                    cached_detections.append({
+                                        "bbox": (bx, by, bw, bh),
+                                        "color": (0, 0, 255),
+                                        "label": f"SPOOF ({round(spoof_res['spoof_score']*100)}%)",
+                                        "status": "spoof"
+                                    })
+                                    continue
+
+                                aligned = align_face(fcrop, landmarks)
+                                emb = generate_face_embedding(aligned)
+                                match = search_similar_face(emb, db)
+
+                                if match and match.get("recognized"):
+                                    student_id = match["student_id"]
+                                    sim_pct = round(match["similarity"] * 100, 1)
+                                    student = db.query(Student).filter(Student.id == student_id).first()
+
+                                    if student:
+                                        today = date.today()
+                                        already_db = db.query(Attendance).filter(
+                                            Attendance.student_id == student_id,
+                                            Attendance.subject_id == selected_subject_id,
+                                            Attendance.session_date == today
+                                        ).first()
+
+                                        last_mark_ts = st.session_state.live_cooldown.get(student_id, 0)
+                                        in_cooldown = (now_ts - last_mark_ts) < 15.0
+
+                                        if already_db or in_cooldown:
+                                            cached_detections.append({
+                                                "bbox": (bx, by, bw, bh),
+                                                "color": (255, 200, 0),
+                                                "label": f"PRESENT: {student.name}",
+                                                "status": "already_marked"
+                                            })
+                                        else:
+                                            new_att = Attendance(
+                                                student_id=student_id,
+                                                subject_id=selected_subject_id,
+                                                session_date=today,
+                                                session_time=datetime.now().time(),
+                                                status=AttendanceStatus.PRESENT,
+                                                confidence=match["similarity"],
+                                                spoof_score=spoof_res["spoof_score"],
+                                                image_quality_score=98.0,
+                                                verification_method="PHONE_IP_WEBCAM_HD"
+                                            )
+                                            try:
+                                                db.add(new_att)
+                                                db.commit()
+                                                st.session_state.live_cooldown[student_id] = now_ts
+                                                st.session_state.live_recent_logs.insert(0, {
+                                                    "Student Name": student.name,
+                                                    "Roll Number": student.student_code,
+                                                    "Time": datetime.now().strftime("%I:%M:%S %p"),
+                                                    "Match": f"{sim_pct}%",
+                                                    "Camera": "📱 Phone IP HD",
+                                                    "Status": "✅ Present (Auto-Logged)"
+                                                })
+                                                last_marked_alert_until = now_ts + 3.0
+                                                last_marked_name = student.name
+                                            except Exception:
+                                                db.rollback()
+
+                                            cached_detections.append({
+                                                "bbox": (bx, by, bw, bh),
+                                                "color": (0, 255, 0),
+                                                "label": f"VERIFIED: {student.name} ({sim_pct}%)",
+                                                "status": "marked"
+                                            })
+                                else:
+                                    highest_sim = round(match["similarity"] * 100, 1) if match else 0
+                                    cached_detections.append({
+                                        "bbox": (bx, by, bw, bh),
+                                        "color": (0, 140, 255),
+                                        "label": f"UNKNOWN ({highest_sim}%)",
+                                        "status": "unknown"
+                                    })
+
+                        # Draw HUD annotations
+                        for det in cached_detections:
+                            bx, by, bw, bh = det["bbox"]
+                            col = det["color"]
+                            lbl = det["label"]
+                            cv2.rectangle(disp_frame, (bx, by), (bx + bw, by + bh), col, 3)
+                            cv2.rectangle(disp_frame, (bx, by - 32), (bx + len(lbl) * 13 + 10, by), col, -1)
+                            cv2.putText(disp_frame, lbl, (bx + 5, by - 8), cv2.FONT_HERSHEY_SIMPLEX, 0.65, (255, 255, 255), 2)
+
+                        # Top overlay badge
+                        cv2.putText(
+                            disp_frame,
+                            f"PHONE HD CAM ({w}x{h}) - {phone_ip_url}",
+                            (16, 32),
+                            cv2.FONT_HERSHEY_SIMPLEX,
+                            0.7,
+                            (34, 197, 94),
+                            2
+                        )
+
+                        if now_ts < last_marked_alert_until:
+                            status_banner.success(f"🎉 **Attendance Verified & Marked!** Welcome, **{last_marked_name}**!")
+                        else:
+                            status_banner.success(f"🟢 **Phone Live Stream Active:** Looking for faces via `{phone_ip_url}`...")
+
+                        # Resize smoothly for web container preview
+                        if w > 760:
+                            scale = 760.0 / w
+                            disp_small = cv2.resize(disp_frame, (760, int(h * scale)))
+                        else:
+                            disp_small = disp_frame
+
+                        video_spot.image(disp_small, channels="BGR", use_container_width=True)
+                        if st.session_state.live_recent_logs:
+                            table_spot.dataframe(pd.DataFrame(st.session_state.live_recent_logs), use_container_width=True)
+
+                        time.sleep(0.03)
+                finally:
+                    cap.release()
+            else:
+                video_spot.info("👉 Click **'Start Scanner'** above to connect to your phone camera and start automated face attendance.")
+
+        # ----------------------------------------------------------------------
+        # MODE 2: LIVE HANDS-FREE AUTO-ATTENDANCE (BROWSER WEBCAM - WORKS ANYWHERE)
+        # ----------------------------------------------------------------------
+        elif capture_mode == "🔴 Live Hands-Free Auto-Attendance (Browser Webcam)":
+
             col_video, col_feed = st.columns([1.4, 1])
 
             with col_video:
@@ -568,11 +814,53 @@ elif menu_choice == "📸 Take Attendance (Kiosk)":
 
             with col_left:
                 st.subheader("📹 Single Photo Snapshot")
-                camera_image = st.camera_input("Position face squarely inside frame and click Take Photo")
+                snap_source = st.radio(
+                    "Snapshot Source",
+                    ["📱 Capture HD Photo from Phone (IP Webcam)", "💻 Browser / Device Webcam"],
+                    horizontal=True,
+                    key="kiosk_snapshot_source"
+                )
 
-                if camera_image is not None:
-                    pil_img = Image.open(camera_image)
-                    frame_bgr = pil_to_cv2(pil_img)
+                frame_bgr = None
+                if snap_source == "📱 Capture HD Photo from Phone (IP Webcam)":
+                    snap_ip = st.text_input(
+                        "Phone IP Address",
+                        value=st.session_state.get("phone_ip_url", "http://192.168.1.5:8080"),
+                        key="snap_ip_kiosk_input"
+                    )
+                    st.session_state["phone_ip_url"] = snap_ip
+
+                    c_sn1, c_sn2 = st.columns([1.5, 1.0])
+                    with c_sn1:
+                        if st.button("📸 Capture HD Photo from Phone", type="primary", use_container_width=True, key="btn_snap_phone"):
+                            from app.services.ip_webcam_service import fetch_ip_webcam_frame
+                            with st.spinner("Capturing high-resolution photo from phone camera..."):
+                                raw_snap = fetch_ip_webcam_frame(snap_ip)
+                                if raw_snap is not None:
+                                    st.session_state["kiosk_captured_phone_snap"] = raw_snap
+                                    frame_bgr = raw_snap
+                                else:
+                                    st.error(f"Could not connect to {snap_ip}. Make sure IP Webcam is running with 'Start server'.")
+                    with c_sn2:
+                        if st.button("⚡ Test Phone", use_container_width=True, key="btn_test_phone_snap"):
+                            from app.services.ip_webcam_service import test_ip_webcam_connection
+                            t_r = test_ip_webcam_connection(snap_ip)
+                            if t_r["connected"]:
+                                st.success("Connected!")
+                            else:
+                                st.error("Offline")
+
+                    if frame_bgr is None and "kiosk_captured_phone_snap" in st.session_state and st.session_state["kiosk_captured_phone_snap"] is not None:
+                        frame_bgr = st.session_state["kiosk_captured_phone_snap"]
+
+                    if frame_bgr is not None:
+                        st.image(cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB), caption=f"Phone HD Image ({frame_bgr.shape[1]}x{frame_bgr.shape[0]})", use_container_width=True)
+                else:
+                    camera_image = st.camera_input("Position face squarely inside frame and click Take Photo")
+                    if camera_image is not None:
+                        pil_img = Image.open(camera_image)
+                        frame_bgr = pil_to_cv2(pil_img)
+
 
                     with st.spinner("Executing 7-Stage Verification Pipeline..."):
                         t_start = time.time()
@@ -807,8 +1095,8 @@ elif menu_choice == "👤 Smart Face Enrollment":
                 st.info("📱 **Phone IP Webcam**: Start the 'IP Webcam' app on your Android phone, tap 'Start server' at the bottom, and enter the IP below.")
                 phone_ip = st.text_input(
                     "Phone IP Webcam URL",
-                    value=st.session_state.get("phone_ip_url", "http://10.10.222.239:8080"),
-                    placeholder="e.g. http://10.10.222.239:8080"
+                    value=st.session_state.get("phone_ip_url", "http://192.168.1.5:8080"),
+                    placeholder="e.g. http://192.168.1.5:8080"
                 )
                 st.session_state["phone_ip_url"] = phone_ip
 
@@ -826,11 +1114,25 @@ elif menu_choice == "👤 Smart Face Enrollment":
                         raw_frame = fetch_ip_webcam_frame(phone_ip)
                         if raw_frame is not None:
                             frame_bgr = raw_frame
+                            st.session_state[f"captured_enr_frame_{selected_student_id}"] = raw_frame
                             eval_res = evaluate_frame_ring_and_purity(frame_bgr, target_pose=target_pose)
                             st.session_state[last_purity_key] = eval_res
                             st.session_state[last_eval_ts_key] = time.time()
                         else:
                             st.error(f"Could not connect to {phone_ip}. Make sure IP Webcam 'Start server' is on.")
+
+                preview_phone = st.checkbox("👁️ Live Phone Camera Viewfinder", value=False, key=f"preview_phone_enr_{selected_student_id}")
+                if preview_phone:
+                    live_prev_frame = fetch_ip_webcam_frame(phone_ip)
+                    if live_prev_frame is not None:
+                        prev_disp = live_prev_frame.copy()
+                        ph, pw = prev_disp.shape[:2]
+                        cv2.ellipse(prev_disp, (int(pw*0.50), int(ph*0.48)), (int(pw*0.17), int(ph*0.30)), 0, 0, 360, (34, 197, 94), 4)
+                        cv2.putText(prev_disp, f"Align face inside green oval ({target_pose.upper()})", (int(pw*0.15), 50), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (34, 197, 94), 2)
+                        st.image(cv2.cvtColor(prev_disp, cv2.COLOR_BGR2RGB), caption=f"Phone Live Viewfinder ({pw}x{ph})", use_container_width=True)
+
+                if frame_bgr is None and f"captured_enr_frame_{selected_student_id}" in st.session_state:
+                    frame_bgr = st.session_state[f"captured_enr_frame_{selected_student_id}"]
 
                 # If we have a captured frame from phone
                 if frame_bgr is not None:
@@ -839,7 +1141,13 @@ elif menu_choice == "👤 Smart Face Enrollment":
                     dh, dw = disp_img.shape[:2]
                     ring_color = (34, 197, 94) if st.session_state.get(last_purity_key, {}).get("is_pure") else (0, 0, 239)
                     cv2.ellipse(disp_img, (int(dw*0.50), int(dh*0.48)), (int(dw*0.17), int(dh*0.30)), 0, 0, 360, ring_color, 4)
-                    st.image(cv2.cvtColor(disp_img, cv2.COLOR_BGR2RGB), caption=f"Phone Camera ({dw}x{dh})", use_container_width=True)
+                    st.image(cv2.cvtColor(disp_img, cv2.COLOR_BGR2RGB), caption=f"Captured Phone Camera ({dw}x{dh})", use_container_width=True)
+                    if st.button("🔄 Retake Phone Photo", key=f"retake_phone_{selected_student_id}"):
+                        st.session_state.pop(f"captured_enr_frame_{selected_student_id}", None)
+                        st.session_state.pop(last_purity_key, None)
+                        st.session_state.pop(last_eval_ts_key, None)
+                        st.rerun()
+
 
             else:
                 st.markdown("##### 🏛️ Gate Biometric Viewfinder (Align in Oval)")

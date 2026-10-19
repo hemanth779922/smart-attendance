@@ -1,4 +1,4 @@
-﻿import time
+import time
 import base64
 import logging
 from datetime import datetime, date, timezone
@@ -21,8 +21,11 @@ from app.schemas.attendance import (
     AttendanceResponse,
     AttendanceVerificationResult,
     VerificationStatus,
-    MarkAttendanceRequest
+    MarkAttendanceRequest,
+    MarkAttendanceIPWebcamRequest
 )
+from app.services.ip_webcam_service import fetch_ip_webcam_frame, test_ip_webcam_connection
+
 from app.schemas.recognition import ChallengeResponse
 from app.ai.low_light import detect_low_light, enhance_low_light, assess_face_quality
 from app.ai.quality_assessment import assess_frame_quality
@@ -59,34 +62,31 @@ def get_liveness_challenge():
     return generate_anti_spoof_challenge()
 
 
-@router.post("/mark", response_model=AttendanceVerificationResult)
-def mark_attendance(
-    req: MarkAttendanceRequest,
-    current_user: User = Depends(require_roles([UserRole.ADMIN, UserRole.FACULTY])),
-    db: Session = Depends(get_db)
-):
+def process_attendance_frame(
+    frame: np.ndarray,
+    subject_id: int,
+    challenge_token: Optional[str] = None,
+    challenge_action: Optional[str] = None,
+    verification_method: str = "FACE_RECOGNITION",
+    current_user: Optional[User] = None,
+    db: Session = None,
+    t_start: Optional[float] = None
+) -> AttendanceVerificationResult:
     """
-    7-Step Secure Attendance Pipeline with Atomic DB Transaction.
-    
-    1. Camera frame decoding & Quality Assessment
-    2. Low-Light Detection & Selective Enhancement
-    3. Face Detection & 5-Point Alignment
-    4. Multi-Signal Anti-Spoofing & Liveness
-    5. Face Embedding Generation & pgvector Similarity Search
-    6. Confidence & Subject Enrollment Verification
-    7. Atomic Database Transaction with Duplicate Attendance Prevention
+    Core 7-Step Secure Attendance Pipeline with Atomic DB Transaction.
+    Executes uniformly across browser webcams and Phone IP Webcams.
     """
-    t_start = time.time()
+    if t_start is None:
+        t_start = time.time()
     latency = {}
 
     # Verify subject exists
-    subject = db.query(Subject).filter(Subject.id == req.subject_id).first()
+    subject = db.query(Subject).filter(Subject.id == subject_id).first()
     if not subject:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Subject not found")
 
-    # Step 1: Decode image and assess frame quality
+    # Step 1: Assess frame quality
     t0 = time.time()
-    frame = decode_base64_image(req.image_base64)
     quality_meta = assess_frame_quality(frame)
     latency["quality_check_ms"] = round((time.time() - t0) * 1000, 2)
 
@@ -129,13 +129,13 @@ def mark_attendance(
     t0 = time.time()
     spoof_result = verify_anti_spoofing(
         face_crop=face_crop,
-        challenge_token=req.challenge_token,
-        detected_action=req.challenge_action
+        challenge_token=challenge_token,
+        detected_action=challenge_action
     )
     latency["anti_spoof_ms"] = round((time.time() - t0) * 1000, 2)
 
     if not spoof_result["is_live"]:
-        if settings.AUDIT_LOG_ENABLED:
+        if settings.AUDIT_LOG_ENABLED and current_user:
             db.add(AuditLog(
                 user_id=current_user.id,
                 action="SPOOF_ATTEMPT_REJECTED",
@@ -182,7 +182,7 @@ def mark_attendance(
     # Step 7: Check if student is active & enrolled in this subject
     is_enrolled_in_subject = db.query(StudentSubject).filter(
         StudentSubject.student_id == student_id,
-        StudentSubject.subject_id == req.subject_id
+        StudentSubject.subject_id == subject_id
     ).first()
 
     if not is_enrolled_in_subject:
@@ -202,7 +202,7 @@ def mark_attendance(
     today = date.today()
     existing_attendance = db.query(Attendance).filter(
         Attendance.student_id == student_id,
-        Attendance.subject_id == req.subject_id,
+        Attendance.subject_id == subject_id,
         Attendance.session_date == today
     ).first()
 
@@ -225,15 +225,15 @@ def mark_attendance(
         now_time = datetime.now().time()
         record = Attendance(
             student_id=student.id,
-            subject_id=req.subject_id,
+            subject_id=subject_id,
             session_date=today,
             session_time=now_time,
             status=AttendanceStatus.PRESENT,
             confidence=match_result["confidence"],
             spoof_score=spoof_result["spoof_score"],
             image_quality_score=face_quality["quality_score"],
-            verified_by=current_user.id,
-            verification_method="FACE_RECOGNITION"
+            verified_by=current_user.id if current_user else None,
+            verification_method=verification_method
         )
         db.add(record)
         db.commit()
@@ -282,6 +282,60 @@ def mark_attendance(
             student_code=student.student_code,
             pipeline_latency_ms=latency
         )
+
+
+@router.post("/mark", response_model=AttendanceVerificationResult)
+def mark_attendance(
+    req: MarkAttendanceRequest,
+    current_user: User = Depends(require_roles([UserRole.ADMIN, UserRole.FACULTY])),
+    db: Session = Depends(get_db)
+):
+    """Mark attendance from base64 browser webcam snapshot."""
+    t_start = time.time()
+    frame = decode_base64_image(req.image_base64)
+    return process_attendance_frame(
+        frame=frame,
+        subject_id=req.subject_id,
+        challenge_token=req.challenge_token,
+        challenge_action=req.challenge_action,
+        verification_method="BROWSER_WEBCAM",
+        current_user=current_user,
+        db=db,
+        t_start=t_start
+    )
+
+
+@router.post("/ip-webcam/mark", response_model=AttendanceVerificationResult)
+def mark_attendance_ip_webcam(
+    req: MarkAttendanceIPWebcamRequest,
+    current_user: User = Depends(require_roles([UserRole.ADMIN, UserRole.FACULTY])),
+    db: Session = Depends(get_db)
+):
+    """Capture live HD frame directly from Phone IP Webcam and mark attendance."""
+    t_start = time.time()
+    frame = fetch_ip_webcam_frame(req.ip_url)
+    if frame is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Could not connect to Phone IP Webcam at {req.ip_url}. Make sure 'IP Webcam' app on your phone has 'Start server' turned ON and is connected to the same Wi-Fi."
+        )
+    return process_attendance_frame(
+        frame=frame,
+        subject_id=req.subject_id,
+        challenge_token=None,
+        challenge_action=None,
+        verification_method="PHONE_IP_WEBCAM_HD",
+        current_user=current_user,
+        db=db,
+        t_start=t_start
+    )
+
+
+@router.get("/ip-webcam/test")
+def test_phone_ip_webcam(url: str = Query("http://192.168.1.5:8080")):
+    """Test connection to Phone IP Webcam."""
+    return test_ip_webcam_connection(url)
+
 
 
 @router.get("/today", response_model=List[AttendanceResponse])

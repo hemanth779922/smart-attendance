@@ -613,7 +613,7 @@
     <!-- Phone IP Webcam Configuration -->
     <div id="ipConfigPanel" class="ip-config-panel">
       <div class="ip-input-row">
-        <input type="text" id="ipUrlInput" class="ip-input" placeholder="e.g. http://10.10.222.239:8080" value="http://10.10.222.239:8080">
+        <input type="text" id="ipUrlInput" class="ip-input" placeholder="e.g. http://192.168.1.5:8080" value="http://192.168.1.5:8080">
         <button id="ipConnectBtn" type="button" class="ip-connect-btn">⚡ Connect Phone</button>
       </div>
       <div class="ip-help-text">
@@ -779,9 +779,14 @@
     let webStream = null;
     let lastEvaluatedTs = 0;
 
-    // Restore saved IP from localStorage
+    // Restore saved IP from localStorage (migrate old IP if present)
     const savedIp = localStorage.getItem("last_ip_webcam_url");
-    ipUrlInput.value = savedIp || "http://10.10.222.239:8080";
+    if (savedIp && savedIp.includes("10.10.222.239")) {
+      ipUrlInput.value = "http://192.168.1.5:8080";
+      localStorage.setItem("last_ip_webcam_url", "http://192.168.1.5:8080");
+    } else {
+      ipUrlInput.value = savedIp || "http://192.168.1.5:8080";
+    }
 
     // Mode Switching
     modeIpBtn.addEventListener("click", () => {

@@ -1,6 +1,12 @@
-﻿from datetime import datetime
+from datetime import datetime
 from typing import Optional, List
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel
+
+try:
+    import email_validator  # noqa: F401
+    from pydantic import EmailStr
+except ImportError:
+    EmailStr = str
 
 
 class StudentBase(BaseModel):

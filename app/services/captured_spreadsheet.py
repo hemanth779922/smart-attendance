@@ -34,8 +34,12 @@ def ensure_storage_ready() -> None:
                 writer.writerow(CSV_HEADERS)
         
         if not os.path.exists(EXCEL_PATH):
-            df = pd.DataFrame(columns=CSV_HEADERS)
-            df.to_excel(EXCEL_PATH, index=False, engine="openpyxl")
+            try:
+                df = pd.DataFrame(columns=CSV_HEADERS)
+                df.to_excel(EXCEL_PATH, index=False, engine="openpyxl")
+            except Exception as e:
+                # openpyxl might not be available or writing might fail; keep CSV intact
+                print(f"[CapturedSpreadsheet] Excel init notice: {e}")
 
 
 def record_captured_photo(

@@ -1,10 +1,11 @@
-﻿from datetime import datetime, timezone
+from datetime import datetime, timezone
 from sqlalchemy import Column, Integer, String, Text, DateTime
 from app.db.base import Base
 
 
 class SystemSetting(Base):
     __tablename__ = "system_settings"
+    __table_args__ = {"extend_existing": True}
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     key = Column(String(100), unique=True, index=True, nullable=False)

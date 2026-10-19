@@ -1,4 +1,4 @@
-﻿import enum
+import enum
 from datetime import datetime, date, time, timezone
 from sqlalchemy import Column, Integer, String, Float, Date, Time, DateTime, ForeignKey, Enum, UniqueConstraint
 from sqlalchemy.orm import relationship
@@ -34,6 +34,7 @@ class Attendance(Base):
     # Database-level unique constraint preventing duplicate attendance per session/date
     __table_args__ = (
         UniqueConstraint("student_id", "subject_id", "session_date", name="uq_student_subject_date"),
+        {"extend_existing": True}
     )
 
     # Relationships

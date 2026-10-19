@@ -11,7 +11,9 @@ import streamlit.components.v1 as components
 from PIL import Image
 
 # Ensure project root is in sys.path
-sys.path.insert(0, os.path.abspath("."))
+ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
+if ROOT_DIR not in sys.path:
+    sys.path.insert(0, ROOT_DIR)
 
 # Declare browser-based live camera auto-scanner component
 COMPONENT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "live_camera_component")

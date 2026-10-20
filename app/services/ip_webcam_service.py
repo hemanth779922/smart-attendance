@@ -6,6 +6,8 @@ import urllib.request
 import urllib.error
 import time
 import logging
+import socket
+import concurrent.futures
 from typing import Dict, Any, Tuple, Optional
 from app.ai.face_engine import detect_faces, estimate_pose
 from app.ai.quality_assessment import validate_pure_enrollment_quality
@@ -41,8 +43,38 @@ def get_video_stream_url(base_url: str) -> str:
     return f"{norm}/video"
 
 
+def discover_ip_webcam(timeout_sec: float = 0.25) -> Optional[str]:
+    """Scan local network subnet to automatically discover active IP Webcam server."""
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        local_ip = s.getsockname()[0]
+        s.close()
+    except Exception:
+        local_ip = "192.168.1.3"
+
+    subnet_prefix = ".".join(local_ip.split(".")[:3])
+
+    def probe(host_num):
+        ip = f"{subnet_prefix}.{host_num}"
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.settimeout(timeout_sec)
+        try:
+            s.connect((ip, 8080))
+            s.close()
+            return f"http://{ip}:8080"
+        except Exception:
+            return None
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=50) as executor:
+        for res in executor.map(probe, range(1, 255)):
+            if res:
+                return res
+    return None
+
+
 def test_ip_webcam_connection(ip_url: str, timeout_sec: float = 2.0) -> Dict[str, Any]:
-    """Test if IP Webcam server is reachable and responsive."""
+    """Test if IP Webcam server is reachable and responsive with detailed diagnostics."""
     norm = normalize_ip_webcam_url(ip_url)
     shot_url = get_snapshot_url(norm)
     try:
@@ -61,10 +93,36 @@ def test_ip_webcam_connection(ip_url: str, timeout_sec: float = 2.0) -> Dict[str
                     }
     except Exception as e:
         logger.debug(f"IP Webcam connection failed for {shot_url}: {e}")
+        # Probe host reachability on specified port
+        host_ip = norm.replace("http://", "").replace("https://", "").split(":")[0]
+        port = 8080
+        if ":" in norm.replace("http://", "").replace("https://", ""):
+            try:
+                port = int(norm.replace("http://", "").replace("https://", "").split(":")[1].split("/")[0])
+            except Exception:
+                port = 8080
+
+        port_open = False
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            s.settimeout(0.5)
+            s.connect((host_ip, port))
+            s.close()
+            port_open = True
+        except Exception:
+            port_open = False
+
+        if not port_open:
+            return {
+                "connected": False,
+                "url": norm,
+                "message": f"Cannot reach {norm}. Check the IP address displayed at the bottom of your phone screen in the IP Webcam app (ensure phone is on same Wi-Fi and screen is awake)."
+            }
+
         return {
             "connected": False,
             "url": norm,
-            "message": f"Could not connect to {norm}. Make sure 'IP Webcam' app has 'Start server' turned ON on your phone."
+            "message": f"Phone answered on port {port}, but video stream timed out. In IP Webcam, tap 'Actions...' ➔ 'Run in background'."
         }
 
     return {

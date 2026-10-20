@@ -270,10 +270,11 @@ elif menu_choice == "📸 Take Attendance (Kiosk)":
                 get_video_stream_url,
                 test_ip_webcam_connection,
                 fetch_ip_webcam_frame,
+                discover_ip_webcam,
                 RealtimeCameraStream
             )
 
-            c_url, c_test, c_ctrl1, c_ctrl2 = st.columns([1.8, 0.8, 1.0, 0.8])
+            c_url, c_test, c_find, c_ctrl1, c_ctrl2 = st.columns([1.6, 0.6, 0.8, 1.0, 0.6])
             with c_url:
                 phone_ip_url = st.text_input(
                     "Phone IP Webcam URL",
@@ -290,9 +291,22 @@ elif menu_choice == "📸 Take Attendance (Kiosk)":
                 if st.button("⚡ Test", use_container_width=True, key="test_phone_ip_btn"):
                     t_res = test_ip_webcam_connection(phone_ip_url)
                     if t_res["connected"]:
-                        st.success("✅ Online & Streaming")
+                        st.success("✅ Online")
                     else:
-                        st.error("❌ Offline")
+                        st.error(t_res.get("message", "❌ Offline"))
+
+            with c_find:
+                st.write("")
+                st.write("")
+                if st.button("🔍 Auto-Find", use_container_width=True, key="find_phone_ip_btn", help="Scan local Wi-Fi to automatically detect active IP Webcam phone"):
+                    with st.spinner("Scanning Wi-Fi for phone camera..."):
+                        found_url = discover_ip_webcam()
+                        if found_url:
+                            st.session_state["phone_ip_url"] = found_url
+                            st.success(f"Found {found_url}!")
+                            st.rerun()
+                        else:
+                            st.warning("Phone not auto-detected. Check the IP on phone screen.")
 
             with c_ctrl1:
                 st.write("")
@@ -335,7 +349,18 @@ elif menu_choice == "📸 Take Attendance (Kiosk)":
                 stream = RealtimeCameraStream(stream_url)
 
                 if not stream.is_opened:
-                    st.error(f"❌ Could not open phone stream at {stream_url}. Make sure 'IP Webcam' app on phone has 'Start server' enabled and phone is connected to the same Wi-Fi.")
+                    st.error(f"❌ Could not connect to phone stream at `{stream_url}`.")
+                    st.markdown("""
+                    <div style="background: rgba(239, 68, 68, 0.08); border-left: 4px solid #ef4444; padding: 12px 16px; border-radius: 8px; margin-bottom: 12px;">
+                        <strong style="color: #f87171;">📱 Quick Connection Checklist:</strong>
+                        <ol style="margin: 6px 0 0 16px; padding: 0; font-size: 0.9rem; line-height: 1.6; color: #cbd5e1;">
+                            <li>Look at the bottom of your phone screen in the <strong>IP Webcam</strong> app — check the exact address displayed (e.g. <code>http://192.168.1.X:8080</code>).</li>
+                            <li>If the IP is different from <code>192.168.1.5</code>, update the URL above or click <strong>'🔍 Auto-Find'</strong>.</li>
+                            <li>Ensure phone is connected to the <strong>same Wi-Fi network</strong> as this laptop (turn OFF mobile data).</li>
+                            <li>Keep the phone screen ON, or tap <strong>'Actions...'</strong> ➔ <strong>'Run in background'</strong> inside the app.</li>
+                        </ol>
+                    </div>
+                    """, unsafe_allow_html=True)
                     st.session_state.live_ip_kiosk_active = False
                     st.stop()
 
@@ -1107,6 +1132,7 @@ elif menu_choice == "👤 Smart Face Enrollment":
                 evaluate_frame_ring_and_purity,
                 get_video_stream_url,
                 check_ring_alignment,
+                discover_ip_webcam,
                 RealtimeCameraStream
             )
 
@@ -1123,7 +1149,7 @@ elif menu_choice == "👤 Smart Face Enrollment":
                 if vf_active_key not in st.session_state:
                     st.session_state[vf_active_key] = False
 
-                col_ip1, col_ip2, col_ip3 = st.columns([1.2, 1.2, 0.8])
+                col_ip1, col_ip2, col_ip3, col_ip4 = st.columns([1.1, 1.1, 0.6, 0.8])
                 with col_ip1:
                     if not st.session_state[vf_active_key]:
                         if st.button("🟢 Start Live Viewfinder", type="primary", use_container_width=True, key=f"start_vf_{selected_student_id}"):
@@ -1155,14 +1181,36 @@ elif menu_choice == "👤 Smart Face Enrollment":
                         if conn_res["connected"]:
                             st.success("✅ Online")
                         else:
-                            st.error("❌ Offline")
+                            st.error(conn_res.get("message", "❌ Offline"))
+
+                with col_ip4:
+                    if st.button("🔍 Auto-Find", use_container_width=True, key=f"find_ip_{selected_student_id}", help="Auto-detect phone on Wi-Fi"):
+                        with st.spinner("Scanning Wi-Fi for phone camera..."):
+                            found_url = discover_ip_webcam()
+                            if found_url:
+                                st.session_state["phone_ip_url"] = found_url
+                                st.success(f"Found {found_url}!")
+                                st.rerun()
+                            else:
+                                st.warning("Phone not auto-detected. Check the IP displayed on your phone screen.")
 
                 # Live Continuous Video Viewfinder
                 if st.session_state.get(vf_active_key, False):
                     stream_url = get_video_stream_url(phone_ip)
                     vf_stream = RealtimeCameraStream(stream_url)
                     if not vf_stream.is_opened:
-                        st.error(f"❌ Could not connect to phone stream at {stream_url}. Make sure 'Start server' is active in IP Webcam app.")
+                        st.error(f"❌ Could not connect to phone stream at `{stream_url}`.")
+                        st.markdown("""
+                        <div style="background: rgba(239, 68, 68, 0.08); border-left: 4px solid #ef4444; padding: 12px 16px; border-radius: 8px; margin-bottom: 12px;">
+                            <strong style="color: #f87171;">📱 Quick Connection Checklist:</strong>
+                            <ol style="margin: 6px 0 0 16px; padding: 0; font-size: 0.9rem; line-height: 1.6; color: #cbd5e1;">
+                                <li>Look at the bottom of your phone screen in the <strong>IP Webcam</strong> app — check the exact address displayed (e.g. <code>http://192.168.1.X:8080</code>).</li>
+                                <li>If the IP is different from <code>192.168.1.5</code>, update the URL above or click <strong>'🔍 Auto-Find'</strong>.</li>
+                                <li>Ensure phone is connected to the <strong>same Wi-Fi network</strong> as this laptop (turn OFF mobile data).</li>
+                                <li>Keep the phone screen ON, or tap <strong>'Actions...'</strong> ➔ <strong>'Run in background'</strong> inside the app.</li>
+                            </ol>
+                        </div>
+                        """, unsafe_allow_html=True)
                         st.session_state[vf_active_key] = False
                     else:
                         vf_status_spot = st.empty()

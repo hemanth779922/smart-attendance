@@ -87,6 +87,7 @@ def detect_faces(frame: np.ndarray, apply_low_light_check: bool = True, max_dete
             processed_frame, _ = enhance_low_light(frame)
 
     orig_h, orig_w = processed_frame.shape[:2]
+    h, w = orig_h, orig_w
 
     # Smart-scaling for ultra-fast detector inference:
     scale = 1.0

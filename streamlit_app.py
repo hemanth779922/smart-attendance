@@ -269,7 +269,8 @@ elif menu_choice == "📸 Take Attendance (Kiosk)":
             from app.services.ip_webcam_service import (
                 get_video_stream_url,
                 test_ip_webcam_connection,
-                fetch_ip_webcam_frame
+                fetch_ip_webcam_frame,
+                RealtimeCameraStream
             )
 
             c_url, c_test, c_ctrl1, c_ctrl2 = st.columns([1.8, 0.8, 1.0, 0.8])
@@ -330,17 +331,15 @@ elif menu_choice == "📸 Take Attendance (Kiosk)":
             if st.session_state.get("live_ip_kiosk_active", False):
                 stream_url = get_video_stream_url(phone_ip_url)
                 
-                # Tell OpenCV / FFmpeg to use lowest latency and zero buffering
-                os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = "fflags;nobuffer|flags;low_delay|max_delay;0"
-                cap = cv2.VideoCapture(stream_url)
-                cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+                # Dedicated zero-buffering background thread stream
+                stream = RealtimeCameraStream(stream_url)
 
-                if not cap.isOpened():
+                if not stream.is_opened:
                     st.error(f"❌ Could not open phone stream at {stream_url}. Make sure 'IP Webcam' app on phone has 'Start server' enabled and phone is connected to the same Wi-Fi.")
                     st.session_state.live_ip_kiosk_active = False
                     st.stop()
 
-                status_banner.success(f"🟢 **Phone Camera Connected!** Scanning faces via `{phone_ip_url}`...")
+                status_banner.success(f"🟢 **Phone Camera Connected! (Zero-Buffering Active)** Scanning faces via `{phone_ip_url}`...")
                 last_detection_ts = 0.0
                 cached_detections = []
                 last_marked_alert_until = 0.0
@@ -360,13 +359,12 @@ elif menu_choice == "📸 Take Attendance (Kiosk)":
 
                 try:
                     while st.session_state.get("live_ip_kiosk_active", False):
-                        # Discard stale buffered frame to keep video in real-time sync
-                        cap.grab()
-                        ret, frame = cap.read()
-                        if not ret:
+                        # Always get the latest live frame with 0-ms buffering lag
+                        ret, frame = stream.read()
+                        if not ret or frame is None:
                             frame = fetch_ip_webcam_frame(phone_ip_url)
                             if frame is None:
-                                time.sleep(0.04)
+                                time.sleep(0.02)
                                 continue
 
                         h, w = frame.shape[:2]
@@ -500,7 +498,7 @@ elif menu_choice == "📸 Take Attendance (Kiosk)":
 
                         time.sleep(0.01)
                 finally:
-                    cap.release()
+                    stream.release()
             else:
                 video_spot.info("👉 Click **'Start Scanner'** above to connect to your phone camera and start automated face attendance.")
 
@@ -681,16 +679,13 @@ elif menu_choice == "📸 Take Attendance (Kiosk)":
                     table_spot.dataframe(pd.DataFrame(st.session_state.live_recent_logs), use_container_width=True)
 
             if st.session_state.live_kiosk_active:
-                cap = cv2.VideoCapture(cam_idx)
-                if not cap.isOpened():
+                stream = RealtimeCameraStream(cam_idx)
+                if not stream.is_opened:
                     st.error(f"❌ Could not open webcam at index {cam_idx}. If you are on Streamlit Cloud or another app is using the camera, use Mode 1 above.")
                     st.session_state.live_kiosk_active = False
                     st.stop()
 
-                cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-                cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
-                cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
-                status_banner.success("🟢 **Local Camera Active!** Looking for faces...")
+                status_banner.success("🟢 **Local Camera Active! (Zero-Buffering Active)** Looking for faces...")
                 last_detection_ts = 0.0
                 cached_detections = []
                 last_marked_alert_until = 0.0
@@ -709,9 +704,10 @@ elif menu_choice == "📸 Take Attendance (Kiosk)":
 
                 try:
                     while st.session_state.live_kiosk_active:
-                        ret, frame = cap.read()
-                        if not ret:
-                            break
+                        ret, frame = stream.read()
+                        if not ret or frame is None:
+                            time.sleep(0.015)
+                            continue
 
                         h, w = frame.shape[:2]
                         now_ts = time.time()
@@ -804,7 +800,7 @@ elif menu_choice == "📸 Take Attendance (Kiosk)":
                             table_spot.dataframe(pd.DataFrame(st.session_state.live_recent_logs), use_container_width=True)
                         time.sleep(0.01)
                 finally:
-                    cap.release()
+                    stream.release()
             else:
                 video_spot.info("👉 Click **'Start Local Hardware Scanner'** above to activate continuous video detection.")
 

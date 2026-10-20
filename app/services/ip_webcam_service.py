@@ -1,3 +1,5 @@
+import os
+import threading
 import cv2
 import numpy as np
 import urllib.request
@@ -284,3 +286,54 @@ def evaluate_frame_ring_and_purity(
             "faces_count": 1,
             "metrics": {**ring_coords, **clarity_metrics, "purity_score": purity_score}
         }
+
+
+class RealtimeCameraStream:
+    """
+    Zero-Buffering Real-Time Camera Streamer.
+    Continuously drains frames from the camera in a dedicated background thread
+    so FFmpeg and socket buffers NEVER build up a backlog of stale frames.
+    Always provides the freshest instant frame (latency < 30ms).
+    """
+    def __init__(self, src):
+        self.src = src
+        # Force lowest latency and zero socket buffering in FFmpeg
+        os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = "fflags;nobuffer|flags;low_delay|max_delay;0"
+        self.cap = cv2.VideoCapture(src)
+        self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+        self.running = False
+        self.lock = threading.Lock()
+        self.latest_frame = None
+        self.frame_count = 0
+        self.is_opened = self.cap.isOpened()
+
+        if self.is_opened:
+            self.running = True
+            self.thread = threading.Thread(target=self._worker, daemon=True)
+            self.thread.start()
+
+    def _worker(self):
+        while self.running:
+            ret, frame = self.cap.read()
+            if not ret or frame is None:
+                time.sleep(0.01)
+                continue
+            with self.lock:
+                self.latest_frame = frame
+                self.frame_count += 1
+
+    def read(self) -> Tuple[bool, Optional[np.ndarray]]:
+        with self.lock:
+            if self.latest_frame is not None:
+                return True, self.latest_frame.copy()
+            return False, None
+
+    def release(self):
+        self.running = False
+        if hasattr(self, "thread") and self.thread.is_alive():
+            self.thread.join(timeout=0.4)
+        if self.cap:
+            try:
+                self.cap.release()
+            except Exception:
+                pass

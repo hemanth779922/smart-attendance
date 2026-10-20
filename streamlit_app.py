@@ -329,7 +329,12 @@ elif menu_choice == "📸 Take Attendance (Kiosk)":
 
             if st.session_state.get("live_ip_kiosk_active", False):
                 stream_url = get_video_stream_url(phone_ip_url)
+                
+                # Tell OpenCV / FFmpeg to use lowest latency and zero buffering
+                os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = "fflags;nobuffer|flags;low_delay|max_delay;0"
                 cap = cv2.VideoCapture(stream_url)
+                cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+
                 if not cap.isOpened():
                     st.error(f"❌ Could not open phone stream at {stream_url}. Make sure 'IP Webcam' app on phone has 'Start server' enabled and phone is connected to the same Wi-Fi.")
                     st.session_state.live_ip_kiosk_active = False
@@ -341,28 +346,40 @@ elif menu_choice == "📸 Take Attendance (Kiosk)":
                 last_marked_alert_until = 0.0
                 last_marked_name = ""
 
+                # In-memory student cache to avoid disk I/O per frame
+                today = date.today()
+                students_cache = {s.id: s for s in db.query(Student).all()}
+                marked_today_set = {
+                    att.student_id for att in db.query(Attendance).filter(
+                        Attendance.subject_id == selected_subject_id,
+                        Attendance.session_date == today
+                    ).all()
+                }
+
+                frame_counter = 0
+
                 try:
                     while st.session_state.get("live_ip_kiosk_active", False):
+                        # Discard stale buffered frame to keep video in real-time sync
+                        cap.grab()
                         ret, frame = cap.read()
                         if not ret:
-                            # Attempt snapshot fetch fallback
                             frame = fetch_ip_webcam_frame(phone_ip_url)
                             if frame is None:
-                                time.sleep(0.08)
+                                time.sleep(0.04)
                                 continue
 
                         h, w = frame.shape[:2]
                         now_ts = time.time()
                         disp_frame = frame.copy()
+                        frame_counter += 1
 
-                        # Run detection every ~0.26s for responsive FPS & accurate matching
-                        if (now_ts - last_detection_ts) > 0.26:
+                        # Run detection every ~0.20s for fluid real-time tracking
+                        if (now_ts - last_detection_ts) > 0.20:
                             last_detection_ts = now_ts
                             cached_detections = []
 
-                            is_low, _ = detect_low_light(frame)
-                            proc_frame, _ = enhance_low_light(frame) if is_low else (frame, {})
-                            faces = detect_faces(proc_frame, apply_low_light_check=False)
+                            faces = detect_faces(frame, apply_low_light_check=False, max_detection_dim=480)
 
                             for face in faces:
                                 bx, by, bw, bh = face["bbox"]
@@ -386,16 +403,10 @@ elif menu_choice == "📸 Take Attendance (Kiosk)":
                                 if match and match.get("recognized"):
                                     student_id = match["student_id"]
                                     sim_pct = round(match["similarity"] * 100, 1)
-                                    student = db.query(Student).filter(Student.id == student_id).first()
+                                    student = students_cache.get(student_id) or db.query(Student).filter(Student.id == student_id).first()
 
                                     if student:
-                                        today = date.today()
-                                        already_db = db.query(Attendance).filter(
-                                            Attendance.student_id == student_id,
-                                            Attendance.subject_id == selected_subject_id,
-                                            Attendance.session_date == today
-                                        ).first()
-
+                                        already_db = (student_id in marked_today_set)
                                         last_mark_ts = st.session_state.live_cooldown.get(student_id, 0)
                                         in_cooldown = (now_ts - last_mark_ts) < 15.0
 
@@ -421,6 +432,7 @@ elif menu_choice == "📸 Take Attendance (Kiosk)":
                                             try:
                                                 db.add(new_att)
                                                 db.commit()
+                                                marked_today_set.add(student_id)
                                                 st.session_state.live_cooldown[student_id] = now_ts
                                                 st.session_state.live_recent_logs.insert(0, {
                                                     "Student Name": student.name,
@@ -476,17 +488,17 @@ elif menu_choice == "📸 Take Attendance (Kiosk)":
                             status_banner.success(f"🟢 **Phone Live Stream Active:** Looking for faces via `{phone_ip_url}`...")
 
                         # Resize smoothly for web container preview
-                        if w > 760:
-                            scale = 760.0 / w
-                            disp_small = cv2.resize(disp_frame, (760, int(h * scale)))
+                        if w > 640:
+                            scale = 640.0 / w
+                            disp_small = cv2.resize(disp_frame, (640, int(h * scale)))
                         else:
                             disp_small = disp_frame
 
                         video_spot.image(disp_small, channels="BGR", use_container_width=True)
-                        if st.session_state.live_recent_logs:
+                        if (frame_counter % 12 == 0 or now_ts < last_marked_alert_until) and st.session_state.live_recent_logs:
                             table_spot.dataframe(pd.DataFrame(st.session_state.live_recent_logs), use_container_width=True)
 
-                        time.sleep(0.03)
+                        time.sleep(0.01)
                 finally:
                     cap.release()
             else:
@@ -677,11 +689,23 @@ elif menu_choice == "📸 Take Attendance (Kiosk)":
 
                 cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
                 cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+                cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
                 status_banner.success("🟢 **Local Camera Active!** Looking for faces...")
                 last_detection_ts = 0.0
                 cached_detections = []
                 last_marked_alert_until = 0.0
                 last_marked_name = ""
+
+                # In-memory student cache to avoid disk I/O per frame
+                today = date.today()
+                students_cache = {s.id: s for s in db.query(Student).all()}
+                marked_today_set = {
+                    att.student_id for att in db.query(Attendance).filter(
+                        Attendance.subject_id == selected_subject_id,
+                        Attendance.session_date == today
+                    ).all()
+                }
+                frame_counter = 0
 
                 try:
                     while st.session_state.live_kiosk_active:
@@ -692,14 +716,13 @@ elif menu_choice == "📸 Take Attendance (Kiosk)":
                         h, w = frame.shape[:2]
                         now_ts = time.time()
                         disp_frame = frame.copy()
+                        frame_counter += 1
 
-                        if (now_ts - last_detection_ts) > 0.28:
+                        if (now_ts - last_detection_ts) > 0.20:
                             last_detection_ts = now_ts
                             cached_detections = []
 
-                            is_low, _ = detect_low_light(frame)
-                            proc_frame, _ = enhance_low_light(frame) if is_low else (frame, {})
-                            faces = detect_faces(proc_frame, apply_low_light_check=False)
+                            faces = detect_faces(frame, apply_low_light_check=False, max_detection_dim=480)
 
                             for face in faces:
                                 bx, by, bw, bh = face["bbox"]
@@ -721,16 +744,10 @@ elif menu_choice == "📸 Take Attendance (Kiosk)":
                                 if match and match.get("recognized"):
                                     student_id = match["student_id"]
                                     sim_pct = round(match["similarity"] * 100, 1)
-                                    student = db.query(Student).filter(Student.id == student_id).first()
+                                    student = students_cache.get(student_id) or db.query(Student).filter(Student.id == student_id).first()
 
                                     if student:
-                                        today = date.today()
-                                        already_db = db.query(Attendance).filter(
-                                            Attendance.student_id == student_id,
-                                            Attendance.subject_id == selected_subject_id,
-                                            Attendance.session_date == today
-                                        ).first()
-
+                                        already_db = (student_id in marked_today_set)
                                         last_mark_ts = st.session_state.live_cooldown.get(student_id, 0)
                                         in_cooldown = (now_ts - last_mark_ts) < 15.0
 
@@ -750,6 +767,7 @@ elif menu_choice == "📸 Take Attendance (Kiosk)":
                                             try:
                                                 db.add(new_att)
                                                 db.commit()
+                                                marked_today_set.add(student_id)
                                                 st.session_state.live_cooldown[student_id] = now_ts
                                                 st.session_state.live_recent_logs.insert(0, {
                                                     "Student Name": student.name, "Roll Number": student.student_code,
@@ -782,9 +800,9 @@ elif menu_choice == "📸 Take Attendance (Kiosk)":
                             cv2.putText(disp_frame, f"ATTENDANCE MARKED: {last_marked_name}", (15, 33), cv2.FONT_HERSHEY_DUPLEX, 0.75, (0, 0, 0), 2)
 
                         video_spot.image(disp_frame, channels="BGR", use_container_width=True)
-                        if st.session_state.live_recent_logs:
+                        if (frame_counter % 12 == 0 or now_ts < last_marked_alert_until) and st.session_state.live_recent_logs:
                             table_spot.dataframe(pd.DataFrame(st.session_state.live_recent_logs), use_container_width=True)
-                        time.sleep(0.025)
+                        time.sleep(0.01)
                 finally:
                     cap.release()
             else:

@@ -71,9 +71,11 @@ def load_cascades():
     logger.info("Face detection and feature extraction engine initialized.")
 
 
-def detect_faces(frame: np.ndarray, apply_low_light_check: bool = True) -> List[Dict[str, Any]]:
+def detect_faces(frame: np.ndarray, apply_low_light_check: bool = True, max_detection_dim: int = 640) -> List[Dict[str, Any]]:
     """
     Detect faces in camera frame with bounding boxes and 5 facial landmarks.
+    Uses smart-scaling for real-time 60+ FPS inference on HD/4K inputs while preserving
+    crisp full-resolution face crops for vector embeddings.
     """
     if frame is None or frame.size == 0:
         return []
@@ -84,40 +86,55 @@ def detect_faces(frame: np.ndarray, apply_low_light_check: bool = True) -> List[
         if is_low:
             processed_frame, _ = enhance_low_light(frame)
 
-    h, w = processed_frame.shape[:2]
+    orig_h, orig_w = processed_frame.shape[:2]
+
+    # Smart-scaling for ultra-fast detector inference:
+    scale = 1.0
+    if max_detection_dim and max(orig_w, orig_h) > max_detection_dim:
+        scale = max_detection_dim / float(max(orig_w, orig_h))
+        det_w = int(orig_w * scale)
+        det_h = int(orig_h * scale)
+        det_frame = cv2.resize(processed_frame, (det_w, det_h))
+    else:
+        det_w, det_h = orig_w, orig_h
+        det_frame = processed_frame
 
     # Strategy 1: YuNet Deep Learning Detector
     global _yunet_detector, _use_yunet
     if _use_yunet and _yunet_detector is not None:
         try:
-            _yunet_detector.setInputSize((w, h))
-            _, faces = _yunet_detector.detect(processed_frame)
+            _yunet_detector.setInputSize((det_w, det_h))
+            _, faces = _yunet_detector.detect(det_frame)
             if faces is not None and len(faces) > 0:
                 results = []
                 for face in faces:
-                    x, y, fw, fh = int(face[0]), int(face[1]), int(face[2]), int(face[3])
+                    fx = int(face[0] / scale)
+                    fy = int(face[1] / scale)
+                    ffw = int(face[2] / scale)
+                    ffh = int(face[3] / scale)
                     conf = float(face[14])
-                    if conf < 0.4 or min(fw, fh) < (settings.MIN_FACE_SIZE * 0.7):
+                    if conf < 0.4 or min(ffw, ffh) < (settings.MIN_FACE_SIZE * 0.7):
                         continue
 
                     landmarks = {
-                        "right_eye": (int(face[4]), int(face[5])),
-                        "left_eye": (int(face[6]), int(face[7])),
-                        "nose": (int(face[8]), int(face[9])),
-                        "mouth_right": (int(face[10]), int(face[11])),
-                        "mouth_left": (int(face[12]), int(face[13]))
+                        "right_eye": (int(face[4] / scale), int(face[5] / scale)),
+                        "left_eye": (int(face[6] / scale), int(face[7] / scale)),
+                        "nose": (int(face[8] / scale), int(face[9] / scale)),
+                        "mouth_right": (int(face[10] / scale), int(face[11] / scale)),
+                        "mouth_left": (int(face[12] / scale), int(face[13] / scale))
                     }
 
-                    margin_x = int(fw * 0.1)
-                    margin_y = int(fh * 0.1)
-                    x1 = max(0, x - margin_x)
-                    y1 = max(0, y - margin_y)
-                    x2 = min(w, x + fw + margin_x)
-                    y2 = min(h, y + fh + margin_y)
+                    margin_x = int(ffw * 0.1)
+                    margin_y = int(ffh * 0.1)
+                    x1 = max(0, fx - margin_x)
+                    y1 = max(0, fy - margin_y)
+                    x2 = min(orig_w, fx + ffw + margin_x)
+                    y2 = min(orig_h, fy + ffh + margin_y)
+                    # Extract crisp face crop from full-resolution original frame
                     face_crop = processed_frame[y1:y2, x1:x2]
 
                     results.append({
-                        "bbox": (x, y, fw, fh),
+                        "bbox": (fx, fy, ffw, ffh),
                         "face_crop": face_crop,
                         "confidence": conf,
                         "landmarks": landmarks

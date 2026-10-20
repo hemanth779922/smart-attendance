@@ -222,7 +222,7 @@
   <script>
     // Streamlit Component Protocol Implementation
     let isRunning = true;
-    let captureInterval = 1200; // Capture snapshot every 1.2s
+    let captureInterval = 450; // Ultra-fast responsive auto-scan (0.45s)
     let lastCaptureTime = 0;
     let isProcessing = false;
     let scanTimer = null;
@@ -321,14 +321,28 @@
         // Grab frame onto canvas
         if (video.videoWidth === 0 || video.videoHeight === 0) return;
         
-        captureCanvas.width = video.videoWidth;
-        captureCanvas.height = video.videoHeight;
+        // Scale to 480px max dimension for featherweight 20KB payload & ultra-fast transmission
+        let cw = video.videoWidth;
+        let ch = video.videoHeight;
+        const maxDim = 480;
+        if (cw > maxDim || ch > maxDim) {
+          if (cw > ch) {
+            ch = Math.round((ch * maxDim) / cw);
+            cw = maxDim;
+          } else {
+            cw = Math.round((cw * maxDim) / ch);
+            ch = maxDim;
+          }
+        }
+
+        captureCanvas.width = cw;
+        captureCanvas.height = ch;
         const ctx = captureCanvas.getContext("2d");
         
         // Draw normal (un-mirrored) frame for accurate facial landmarks
-        ctx.drawImage(video, 0, 0, captureCanvas.width, captureCanvas.height);
+        ctx.drawImage(video, 0, 0, cw, ch);
         
-        const dataUrl = captureCanvas.toDataURL("image/jpeg", 0.72);
+        const dataUrl = captureCanvas.toDataURL("image/jpeg", 0.70);
         lastCaptureTime = now;
         isProcessing = true;
 
@@ -337,7 +351,7 @@
           image_data: dataUrl,
           timestamp: now
         });
-      }, 300);
+      }, 150);
     }
 
     function toggleScanner() {

@@ -1104,11 +1104,14 @@ elif menu_choice == "👤 Smart Face Enrollment":
             from app.services.ip_webcam_service import (
                 test_ip_webcam_connection,
                 fetch_ip_webcam_frame,
-                evaluate_frame_ring_and_purity
+                evaluate_frame_ring_and_purity,
+                get_video_stream_url,
+                check_ring_alignment,
+                RealtimeCameraStream
             )
 
             if cam_source == "📱 Phone IP Webcam (Recommended for HD Clarity)":
-                st.info("📱 **Phone IP Webcam**: Start the 'IP Webcam' app on your Android phone, tap 'Start server' at the bottom, and enter the IP below.")
+                st.info("📱 **Phone IP Webcam**: Start 'IP Webcam' app on phone, tap 'Start server' at bottom, and enter IP below.")
                 phone_ip = st.text_input(
                     "Phone IP Webcam URL",
                     value=st.session_state.get("phone_ip_url", "http://192.168.1.5:8080"),
@@ -1116,17 +1119,25 @@ elif menu_choice == "👤 Smart Face Enrollment":
                 )
                 st.session_state["phone_ip_url"] = phone_ip
 
-                col_ip1, col_ip2 = st.columns([1, 1.2])
+                vf_active_key = f"enr_phone_vf_active_{selected_student_id}"
+                if vf_active_key not in st.session_state:
+                    st.session_state[vf_active_key] = False
+
+                col_ip1, col_ip2, col_ip3 = st.columns([1.2, 1.2, 0.8])
                 with col_ip1:
-                    if st.button("⚡ Test Connection", use_container_width=True):
-                        conn_res = test_ip_webcam_connection(phone_ip)
-                        if conn_res["connected"]:
-                            st.success(f"Connected: {conn_res['message']}")
-                        else:
-                            st.error(conn_res["message"])
+                    if not st.session_state[vf_active_key]:
+                        if st.button("🟢 Start Live Viewfinder", type="primary", use_container_width=True, key=f"start_vf_{selected_student_id}"):
+                            st.session_state[vf_active_key] = True
+                            st.session_state.pop(f"captured_enr_frame_{selected_student_id}", None)
+                            st.rerun()
+                    else:
+                        if st.button("⏹️ Stop Viewfinder", type="secondary", use_container_width=True, key=f"stop_vf_{selected_student_id}"):
+                            st.session_state[vf_active_key] = False
+                            st.rerun()
 
                 with col_ip2:
-                    if st.button("📸 Capture HD Photo from Phone", type="primary", use_container_width=True):
+                    if st.button("📸 Capture HD Photo Now", type="primary", use_container_width=True, key=f"btn_cap_phone_{selected_student_id}"):
+                        st.session_state[vf_active_key] = False
                         raw_frame = fetch_ip_webcam_frame(phone_ip)
                         if raw_frame is not None:
                             frame_bgr = raw_frame
@@ -1134,34 +1145,112 @@ elif menu_choice == "👤 Smart Face Enrollment":
                             eval_res = evaluate_frame_ring_and_purity(frame_bgr, target_pose=target_pose)
                             st.session_state[last_purity_key] = eval_res
                             st.session_state[last_eval_ts_key] = time.time()
+                            st.rerun()
                         else:
-                            st.error(f"Could not connect to {phone_ip}. Make sure IP Webcam 'Start server' is on.")
+                            st.error(f"Could not connect to {phone_ip}. Make sure IP Webcam 'Start server' is active.")
 
-                preview_phone = st.checkbox("👁️ Live Phone Camera Viewfinder", value=False, key=f"preview_phone_enr_{selected_student_id}")
-                if preview_phone:
-                    live_prev_frame = fetch_ip_webcam_frame(phone_ip)
-                    if live_prev_frame is not None:
-                        prev_disp = live_prev_frame.copy()
-                        ph, pw = prev_disp.shape[:2]
-                        cv2.ellipse(prev_disp, (int(pw*0.50), int(ph*0.48)), (int(pw*0.17), int(ph*0.30)), 0, 0, 360, (34, 197, 94), 4)
-                        cv2.putText(prev_disp, f"Align face inside green oval ({target_pose.upper()})", (int(pw*0.15), 50), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (34, 197, 94), 2)
-                        st.image(cv2.cvtColor(prev_disp, cv2.COLOR_BGR2RGB), caption=f"Phone Live Viewfinder ({pw}x{ph})", use_container_width=True)
+                with col_ip3:
+                    if st.button("⚡ Test", use_container_width=True, key=f"test_link_{selected_student_id}"):
+                        conn_res = test_ip_webcam_connection(phone_ip)
+                        if conn_res["connected"]:
+                            st.success("✅ Online")
+                        else:
+                            st.error("❌ Offline")
+
+                # Live Continuous Video Viewfinder
+                if st.session_state.get(vf_active_key, False):
+                    stream_url = get_video_stream_url(phone_ip)
+                    vf_stream = RealtimeCameraStream(stream_url)
+                    if not vf_stream.is_opened:
+                        st.error(f"❌ Could not connect to phone stream at {stream_url}. Make sure 'Start server' is active in IP Webcam app.")
+                        st.session_state[vf_active_key] = False
+                    else:
+                        vf_status_spot = st.empty()
+                        vf_video_spot = st.empty()
+                        vf_status_spot.info(f"👁️ **Continuous Live Viewfinder Active:** Look at the phone camera and align your face inside the oval circle for `{target_pose.upper()}` pose. Click **'📸 Capture HD Photo Now'** above when green.")
+
+                        last_eval_time = 0.0
+                        last_eval_msg = f"Align face inside oval circle for {target_pose.upper()} pose"
+                        last_ring_color = (0, 200, 255)
+
+                        try:
+                            while st.session_state.get(vf_active_key, False):
+                                ret, frame = vf_stream.read()
+                                if not ret or frame is None:
+                                    time.sleep(0.015)
+                                    continue
+
+                                h, w = frame.shape[:2]
+                                now_ts = time.time()
+                                disp_frame = frame.copy()
+
+                                # Analyze face position inside the circle every ~0.18s
+                                if (now_ts - last_eval_time) > 0.18:
+                                    last_eval_time = now_ts
+                                    faces = detect_faces(frame, apply_low_light_check=False, max_detection_dim=480)
+                                    if not faces:
+                                        last_eval_msg = "🔍 NO FACE DETECTED - STEP IN FRONT OF PHONE"
+                                        last_ring_color = (0, 140, 255)
+                                    elif len(faces) > 1:
+                                        last_eval_msg = "⚠️ MULTIPLE PEOPLE - ONLY APPLICANT ALLOWED"
+                                        last_ring_color = (0, 0, 255)
+                                    else:
+                                        face = faces[0]
+                                        bx, by, bw, bh = face["bbox"]
+                                        in_ring, ring_msg, _ = check_ring_alignment(frame.shape, (bx, by, bw, bh))
+                                        if in_ring:
+                                            last_ring_color = (34, 197, 94) # Vibrant Green
+                                            last_eval_msg = f"✓ FACE IN CIRCLE ({target_pose.upper()}) - CLICK CAPTURE NOW!"
+                                        else:
+                                            last_ring_color = (0, 0, 239) # Red
+                                            last_eval_msg = ring_msg
+
+                                # Draw the Guided Oval Circle on live video
+                                cx, cy = int(w * 0.50), int(h * 0.48)
+                                rx, ry = int(w * 0.17), int(h * 0.30)
+                                cv2.ellipse(disp_frame, (cx, cy), (rx, ry), 0, 0, 360, last_ring_color, 4)
+
+                                # HUD text overlay top
+                                cv2.rectangle(disp_frame, (0, 0), (w, 54), (15, 23, 42), -1)
+                                cv2.putText(
+                                    disp_frame,
+                                    f"LIVE ({w}x{h}): {last_eval_msg}",
+                                    (20, 36),
+                                    cv2.FONT_HERSHEY_SIMPLEX,
+                                    0.68,
+                                    (255, 255, 255),
+                                    2
+                                )
+
+                                # Smooth resize for web layout
+                                if w > 640:
+                                    scale = 640.0 / w
+                                    disp_small = cv2.resize(disp_frame, (640, int(h * scale)))
+                                else:
+                                    disp_small = disp_frame
+
+                                vf_video_spot.image(disp_small, channels="BGR", use_container_width=True)
+                                time.sleep(0.01)
+
+                        finally:
+                            vf_stream.release()
 
                 if frame_bgr is None and f"captured_enr_frame_{selected_student_id}" in st.session_state:
                     frame_bgr = st.session_state[f"captured_enr_frame_{selected_student_id}"]
 
                 # If we have a captured frame from phone
-                if frame_bgr is not None:
+                if frame_bgr is not None and not st.session_state.get(vf_active_key, False):
                     # Draw visual vertical ring on displayed preview
                     disp_img = frame_bgr.copy()
                     dh, dw = disp_img.shape[:2]
                     ring_color = (34, 197, 94) if st.session_state.get(last_purity_key, {}).get("is_pure") else (0, 0, 239)
                     cv2.ellipse(disp_img, (int(dw*0.50), int(dh*0.48)), (int(dw*0.17), int(dh*0.30)), 0, 0, 360, ring_color, 4)
                     st.image(cv2.cvtColor(disp_img, cv2.COLOR_BGR2RGB), caption=f"Captured Phone Camera ({dw}x{dh})", use_container_width=True)
-                    if st.button("🔄 Retake Phone Photo", key=f"retake_phone_{selected_student_id}"):
+                    if st.button("🔄 Retake / Restart Live Viewfinder", key=f"retake_phone_{selected_student_id}"):
                         st.session_state.pop(f"captured_enr_frame_{selected_student_id}", None)
                         st.session_state.pop(last_purity_key, None)
                         st.session_state.pop(last_eval_ts_key, None)
+                        st.session_state[vf_active_key] = True
                         st.rerun()
 
 
